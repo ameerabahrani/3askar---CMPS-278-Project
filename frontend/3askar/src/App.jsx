@@ -1,13 +1,21 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import LoginPage from "./pages/LoginPage";
+import React from "react";
+import Sidebar from "./components/Sidebar";
+import { Box } from "@mui/material"
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<LoginPage />} />
-      </Routes>
-    </Router>
+    <Box sx={{ display: "flex", height: "100vh" }}>
+      <Sidebar />
+      <Box
+        sx={{
+          flex: 1,
+          bgcolor: "#ffffff",
+          p: 2,
+        }}
+      >
+        <h2>Homepage content goes here</h2>
+      </Box>
+    </Box>
   );
 }
 

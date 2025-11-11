@@ -1,5 +1,5 @@
 import React, {useState} from "react";
-import { Box, Paper, Typography, TextField, Link, Button } from "@mui/material";
+import { Box, Paper, Typography, TextField, Link, Button, FormControl, InputLabel, Select, MenuItem } from "@mui/material";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -7,6 +7,45 @@ export default function LoginPage() {
   const handleNext = ()=> {
     alert(`Next clicked with email: ${email || "(empty)"} - UI only`);
   };
+  const [mode, setMode] = useState("login"); //login or create pages
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [dobMonth, setDobMonth] = useState("");
+  const [dobDay,   setDobDay]   = useState("");
+  const [dobYear,  setDobYear]  = useState("");
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const days   = Array.from({ length: 31 }, (_, i) => String(i + 1));
+  const years  = Array.from({ length: 120 }, (_, i) => String(new Date().getFullYear() - i));
+  const [gender, setGender] = useState("");
+
+
+  const fieldSx={
+          mt: 2,
+          backgroundColor: "#fff",
+          input: { color: "#000" },
+        
+          "& .MuiOutlinedInput-root": {
+            "& fieldset": { borderColor: "#f6fafe" },
+            "&:hover fieldset": { borderColor: "#dadce0" },
+            "&.Mui-focused fieldset": { borderColor: "#1a73e8" },
+          },
+        
+          /*  autofill styling (browser override) */   
+          "& input:-webkit-autofill": {
+            WebkitBoxShadow: "0 0 0 1000px #e8f0fe inset",
+            WebkitTextFillColor: "#000",
+            caretColor: "#000",
+            transition: "background-color 5000s ease-in-out 0s",
+          },
+        };
+  const selectSx = {
+          mt: 2,
+          backgroundColor: "#fff",
+          "& .MuiOutlinedInput-notchedOutline": { borderColor: "#f6fafe" },
+          "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#dadce0" },
+          "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#1a73e8" },
+        };
+
 
   return (
     <Box 
@@ -52,7 +91,7 @@ export default function LoginPage() {
 
           {/*Main heading*/}
           <Typography variant="h5" sx={{ fontWeight: 500, mb: 0.5 }}>
-            Sign in
+            {mode === "login" ? "Sign in" : "Create a Google Account"}
           </Typography>
 
           {/* subtitle */}
@@ -62,67 +101,33 @@ export default function LoginPage() {
 
         </Box>
         
-        <TextField
-          label="Email or phone"
-          fullWidth
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email"
-          autoFocus
-          InputLabelProps={{ shrink: true }}
-          variant="outlined"
-          sx={{
-            mt: 2,
-            backgroundColor: "#fff",       // ✅ always white background
-            input: {
-              color: "#000",               // ✅ black text                                     !!!!!!NEED TO FIX AUTO COMOPLETE BUG!!!!!!!!!!!
-            },
-            "& .MuiOutlinedInput-root": {
-              "& fieldset": {
-                borderColor: "#f6fafe",    // light gray border
-              },
-              "&:hover fieldset": {
-                borderColor: "#dadce0",    // no hover darkening
-              },
-              "&.Mui-focused fieldset": {
-                borderColor: "#1a73e8",    // blue border on focus
-              },
-            },
-          }}
-        />
-
-
-        <TextField
-          label="Enter your password"
-          type="password"
-          fullWidth
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-          variant="outlined"
-          sx={{
-            mt: 2,
-            backgroundColor: "#fff",
-            input: {
-              color: "#000",
-            },
-            "& .MuiOutlinedInput-root": {
-              "& fieldset": {
-                borderColor: "#dadce0",
-              },
-              "&:hover fieldset": {
-                borderColor: "#dadce0",
-              },
-              "&.Mui-focused fieldset": {
-                borderColor: "#1a73e8",
-              },
-            },
-          }}
-        />
+        {/* Input fields section */}
+        {mode === "login" && (
+        <>
+            <TextField
+              label="Email or phone"
+              variant="outlined"
+              fullWidth
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              sx={fieldSx}
+            />  
 
 
 
-        <Link
+          <TextField
+            label="Enter your password"
+            type="password"
+            fullWidth
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            variant="outlined"
+            sx={fieldSx}
+          />
+
+          <Link
           href="#"
           underline="none"               
           onClick={(e) => e.preventDefault()}
@@ -143,37 +148,14 @@ export default function LoginPage() {
         </Link>
 
 
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-          Not your computer? Use Guest mode to sign in privately.&nbsp;
-          <Link
-            href="#"
-            underline="none"              
-            onClick={(e) => e.preventDefault()}
-            sx={{
-              color: "#1a73e8",           
-              fontWeight: 400,
-              "&:hover": {
-                color: "#1a73e8",         
-                textDecoration: "none",   
-                backgroundColor: "transparent", 
-                cursor: "pointer",        
-              },
-            }}
-          >
-            Learn more about using Guest mode
-          </Link>
-        </Typography>
-
-
-
         {/* Bottom row */}
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 3 }}>
           <Link
             href="#"
             underline="hover"
-            onClick={(e) => e.preventDefault()}
+            onClick={(e) => {e.preventDefault(); setMode("create");}}
             sx={{
-              px: 1,
+              px: -2,
               py: 1,                        
               borderRadius: 1,              
               "&:hover": {
@@ -200,9 +182,183 @@ export default function LoginPage() {
         </Box>
 
 
+        </>
+
+        )}
+
+        {/* Create account mode input fields */}
+        {mode === "create" && (
+          <>
+            {/*First / Last name feilds*/}
+            <Box sx={{  mt: 1 }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+                <TextField
+                  label = "First name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  InputLabelProps={{ shrink: true}}
+                  variant="outlined"
+                  sx={fieldSx}
+                />
+                <TextField
+                  label = "Last name (optional)"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  InputLabelProps={{ shrink: true}}
+                  variant="outlined"
+                  sx={fieldSx}
+                />
+
+              </Box>
+              {/* DOB fields */}
+              <Box
+                sx={{ 
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" },
+                  gap: 2,
+                  mt: 2, 
+                }}
+              >
+                {/* Month */}
+                <FormControl>
+                  <InputLabel shrink>Month</InputLabel>
+                  <Select
+                    value={dobMonth}
+                    onChange={(e) => setDobMonth(e.target.value)}
+                    displayEmpty
+                    sx={selectSx}
+                  >
+                    {months.map((m) => (
+                      <MenuItem key={m} value={m}>{m}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                {/* Day */}
+                <FormControl>
+                  <InputLabel shrink>Day</InputLabel>
+                  <Select
+                    value={dobDay}
+                    onChange={(e) => setDobDay(e.target.value)}
+                    sx={selectSx}
+                  >
+                    {days.map((d) => (
+                      <MenuItem key={d} value={d}>{d}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                {/* Year */}
+                <FormControl>
+                  <InputLabel shrink>Year</InputLabel>
+                  <Select
+                    value={dobYear}
+                    onChange={(e) => setDobYear(e.target.value)}
+                    sx={selectSx}
+                  >
+                    {years.map((y) => (
+                      <MenuItem key={y} value={y}>{y}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+              </Box>
+              
+              {/* Gender field */}
+              {/* <FormControl sx={{ mt: 2, minWidth: 150 }}>
+                <InputLabel shrink>Gender</InputLabel>
+                <Select
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  sx={selectSx}
+                >
+                  {["Female", "Male", "Prefer not to say", "Custom"].map((g) => (
+                    <MenuItem key={g} value={g}>
+                      {g}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>  */}
+              
+
+              {/*input field email and pass*/}
+
+              <TextField
+              label="Email or phone"
+              variant="outlined"
+              fullWidth
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              sx={fieldSx}
+            />  
+
+
+
+          <TextField
+            label="Enter your password"
+            type="password"
+            fullWidth
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            variant="outlined"
+            sx={fieldSx}
+          />
+
+              <Box 
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  mt: 3,
+                }}
+              >
+                <Link
+                  href="#"
+                  underline="hover"
+                  onClick={(e) => {e.preventDefault(); setMode("login");}}
+                  sx={{
+                    px: 1.5,
+                    py: 0.8,
+                    borderRadius: 1,
+                    "&:hover": { backgroundColor: "#f6fafe",},
+                  }}
+                >
+                  Sign in
+                </Link>
+
+                <Button
+                  variant="contained"
+                  sx={{
+                    textTransform: "none",
+                    px: 3,
+                    bgcolor: "#1a73e8",
+                    "&:hover": { bgcolor: "#1765cc" },
+                  }}
+                  onClick={() => alert("Create account (UI only)")}
+                >
+                  Next
+                </Button>
+                                    
+              </Box>     
+
+            </Box>
+
+            
+           </>  // react fragments tags
+        )}
+        
+        
+
+
+
+        
+
       </Paper>
 
       
     </Box>
   );
 }
+/*END */

@@ -1,4 +1,4 @@
-import React, {useState} from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 
 import {
     Box, 
@@ -9,9 +9,12 @@ import {
     ListItemText, 
     Typography,
     LinearProgress, 
-    Divider,
+    // Divider,
     Collapse,
 } from "@mui/material";
+
+
+import { Menu, MenuItem } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add"; 
 import HomeFilledIcon from '@mui/icons-material/HomeFilled'; 
@@ -32,43 +35,108 @@ import CloudOutlinedIcon from '@mui/icons-material/CloudOutlined';
 import WbCloudyIcon from '@mui/icons-material/WbCloudy';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import CreateNewFolderOutlinedIcon from '@mui/icons-material/CreateNewFolderOutlined';
+import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
+import DriveFolderUploadOutlinedIcon from '@mui/icons-material/DriveFolderUploadOutlined';
 
 
 const Sidebar = () => {
-    const SIDEBAR_WIDTH = 240; 
-    const [active, setActive] = useState("home"); 
-    const [usedStorage, setUsedStorage] = useState(36);
+  const [width, setWidth] = useState(240);
+  const [isResizing, setIsResizing] = useState(false);
+  const MIN_WIDTH = 200;
+  const MAX_WIDTH = 280;
+
+    // Sidebar Resizing line
+    const handleMouseDown = useCallback((e) => {
+      e.preventDefault();
+      setIsResizing(true);
+    }, []);
+
+    useEffect(() => {
+      if (!isResizing) return;
+
+      const onMouseMove = (e) => {
+        const newWidth = Math.min(Math.max(e.clientX, MIN_WIDTH), MAX_WIDTH);
+        setWidth(newWidth);
+      };
+
+      const stopResizing = () => setIsResizing(false);
+
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", stopResizing);
+      window.addEventListener("mouseleave", stopResizing);
+      window.addEventListener("blur", stopResizing);
+
+      return () => {
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", stopResizing);
+        window.removeEventListener("mouseleave", stopResizing);
+        window.removeEventListener("blur", stopResizing);
+      };
+    }, [isResizing, MIN_WIDTH, MAX_WIDTH]);
+
+    const [active, setActive] = useState("home"); // if any element in sidebar is selected 
+    const [usedStorage, setUsedStorage] = useState(60); //TODO: update to calculate storage capacity dynamically  
     const [openDrive, setOpenDrive] = useState(false);
     const [openComputers, setOpenComputers] = useState(false);
-    const [connectedDevices] = useState([]); //empty means no devices connected
-    
+    const [connectedDevices] = useState([]); //empty = no devices connected
+
+    // New button menu state and refs for uploads
+    const [newMenuEl, setNewMenuEl] = useState(null);
+    const fileInputRef = useRef(null);
+    const folderInputRef = useRef(null);
+
+    const handleOpenNewMenu = (e) => setNewMenuEl(e.currentTarget);
+    const handleCloseNewMenu = () => setNewMenuEl(null);
+
+    const handleCreateFolder = () => {
+      // TODO: replace with actual create-folder action in backend
+      console.log("Create new folder clicked");
+    };
+
+    const triggerFileUpload = () => fileInputRef.current?.click();
+    const triggerFolderUpload = () => folderInputRef.current?.click();
+
+    const handleFilesSelected = (e) => {
+      const files = Array.from(e.target.files || []);
+      console.log("Files selected:", files);
+      e.target.value = ""; // reset so same file selection retriggers
+    };
+
+    const handleFolderSelected = (e) => {
+      const files = Array.from(e.target.files || []);
+      console.log("Folder upload selection:", files);
+      e.target.value = "";
+    };
+
 
     const sideItems = [
         {id:"home", label: "Home", icon: <HomeOutlinedIcon />, activeIcon: <HomeFilledIcon color="primary" />}, 
         {id:"drive", label: "My Drive", icon: <DriveFileMoveOutlinedIcon />, activeIcon: <DriveFileMoveOutlinedIcon color="primary" />}, 
         {id:"computers", label: "Computers", icon: <DevicesIcon />, activeIcon: <DevicesIcon color="primary" />}, 
-
-        {id: "divider-1", type: "spacer"},
-
+        // {id: "divider-1", type: "spacer"},
         {id:"shared", label: "Shared with me", icon: <PeopleAltOutlinedIcon />, activeIcon: <PeopleAltIcon color="primary" />}, 
         {id:"recent", label: "Recent", icon: <WatchLaterOutlinedIcon />, activeIcon: <WatchLaterIcon color="primary" />}, 
         {id:"starred", label: "Starred", icon: <StarBorderOutlinedIcon />, activeIcon: <StarIcon color="primary" />}, 
-
-        {id: "divider-2", type: "spacer"},
-
+        // {id: "divider-2", type: "spacer"},
         {id:"spam", label: "Spam", icon: <ReportGmailerrorredOutlinedIcon />, activeIcon: <ReportIcon color="primary" />}, 
         {id:"bin", label: "Trash", icon: <DeleteOutlinedIcon />, activeIcon: <DeleteIcon color="primary" />}, 
         {id:"storage", label: `Storage (${usedStorage}% full)`, icon: <CloudOutlinedIcon />, activeIcon: <WbCloudyIcon color="primary" />}, 
 
     ];
 
+    const getStorageColor = (usage) => {
+      if(usage < 60) return "#0b57d0";
+      if(usage < 85) return "#e59800";
+      return "#d93025";
+    };
 
     return (
 
 
         <Box 
           sx = {{
-            width: SIDEBAR_WIDTH, 
+            width, 
             height: "100vh", 
             bgcolor: "#f8fafd",
             borderRight: "1px solid #e0e0e0",
@@ -76,6 +144,8 @@ const Sidebar = () => {
             flexDirection: "column",
             p: 1.8,
             boxSizing: "border-box",
+            position: "relative", 
+            transition:"width 0.1s linear",
         }}
 
         >
@@ -100,10 +170,43 @@ const Sidebar = () => {
                         boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
                     },
                 }}
-                
+                onClick={handleOpenNewMenu}
+                aria-controls={newMenuEl ? 'new-menu' : undefined}
+                aria-haspopup="true"
+                aria-expanded={newMenuEl ? 'true' : undefined}
             >
                 New
             </Button>
+
+            <Menu
+              id="new-menu"
+              anchorEl={newMenuEl}
+              open={Boolean(newMenuEl)}
+              onClose={handleCloseNewMenu}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+            >
+              <MenuItem onClick={() => { handleCloseNewMenu(); handleCreateFolder(); }}>
+                <ListItemIcon>
+                  <CreateNewFolderOutlinedIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="New folder" />
+              </MenuItem>
+              <MenuItem onClick={() => { handleCloseNewMenu(); triggerFileUpload(); }}>
+                <ListItemIcon>
+                  <UploadFileOutlinedIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="Upload file" />
+              </MenuItem>
+              <MenuItem onClick={() => { handleCloseNewMenu(); triggerFolderUpload(); }}>
+                <ListItemIcon>
+                  <DriveFolderUploadOutlinedIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="Folder upload" />
+              </MenuItem>
+            </Menu>
+            <input type="file" hidden multiple ref={fileInputRef} onChange={handleFilesSelected} /> 
+            <input type="file" hidden ref={folderInputRef} onChange={handleFolderSelected} />
 
             <List>
                 {sideItems.map((item) => {
@@ -234,6 +337,7 @@ const Sidebar = () => {
             })}
     
         </List>
+        
 
         <Box sx={{ px: 0.8 }}>
           <Box sx={{ ml: 0.5, mr: 1, pl: 1.25 }}>
@@ -247,7 +351,7 @@ const Sidebar = () => {
                 mb: 0.5, 
                 bgcolor: "#e0e0e0", 
                 "& .MuiLinearProgress-bar": {
-                  bgcolor: "#ef9800"
+                  bgcolor:getStorageColor(usedStorage)
                 },
               }}
             />
@@ -261,6 +365,19 @@ const Sidebar = () => {
             </Typography>
           </Box>
         </Box>
+        <Box 
+          sx={{
+            position: "absolute", 
+            top: 0,
+            right: 0,
+            width: "4px", 
+            height: "100%",
+            cursor: "col-resize", 
+            touchAction: "none",
+            "&:hover": { backgroundColor: "rgba(0,0,0,0.1)"},
+          }}
+          onMouseDown={handleMouseDown}
+        />
     </Box>
     );
 

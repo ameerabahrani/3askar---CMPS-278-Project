@@ -1,21 +1,16 @@
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import LoginPage from "./pages/LoginPage";
 import React from "react";
-import Sidebar from "./components/Sidebar";
-import { Box } from "@mui/material"
+import Navbar from "./components/Navbar";
+import Homepage from "./components/Homepage";
+
 
 function App() {
   return (
-    <Box sx={{ display: "flex", height: "100vh" }}>
-      <Sidebar />
-      <Box
-        sx={{
-          flex: 1,
-          bgcolor: "#ffffff",
-          p: 2,
-        }}
-      >
-        <h2>Homepage content goes here</h2>
-      </Box>
-    </Box>
+    <div style={{ backgroundColor: "#fff", height: "100vh", overflow: "hidden" }}>
+      <Navbar />
+      <Homepage />
+    </div> 
   );
 }
 

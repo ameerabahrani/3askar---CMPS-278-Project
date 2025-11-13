@@ -18,7 +18,7 @@ router.get(
   })
 );
 
-// Step 3 — Logout TODO: something
+// Step 3 — Logout TODO: check for error, make sure the session ends, and redirect back to the login page when its impelemented not the homepage
 router.get("/logout", (req, res) => {
   req.logout(() => {
     res.redirect("http://localhost:5173");
@@ -31,13 +31,20 @@ router.post('/login', async (req, res) => {
     const email = req.body.email;
     const password = req.body.password;
 
-    if (!email || !password){
-      return res.status(400).send("Email or Password not provided");
+    if (!email){
+      return res.status(400).send("Email not provided");
+    }
+
+    if (!password){
+      return res.status(400).send("Password not provided");
     }
 
     const checkUser = await User.findOne({email: `${email}`});
 
-    if (!checkUser || !checkUser.passwordHash){
+    if (!checkUser){
+      return res.status(400).send("Email or Password doesnt exist");
+    }
+    if (!checkUser.passwordHash){
       return res.status(400).send("Email or Password doesnt exist");
     }
 
@@ -55,12 +62,12 @@ router.post('/login', async (req, res) => {
       return res.status(401).send('invalid email or password');
     }
   } catch (error){
-    return res.status(500).send('Error during login');
+    console.log('Error during login');
   }
 
 });
 
-const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const months = Object.freeze(["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]);
 
 
 router.post('/register', async (req, res) => {
@@ -91,7 +98,7 @@ router.post('/register', async (req, res) => {
   //instanlty log inn and create a session for them
   req.login(newUser, (err) => {
     if (err){
-      return res.status(500).send('login failed');
+      console.log('login failed');
     }
     return res.status(200).send('Login successful');
   });

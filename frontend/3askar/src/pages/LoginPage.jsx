@@ -1,13 +1,45 @@
 import React, {useState} from "react";
-import { Box, Paper, Typography, TextField, Link, Button, FormControl, InputLabel, Select, MenuItem } from "@mui/material";
+import { Box, Paper, Typography, TextField, Link, Button, FormControl, InputLabel, Select, MenuItem, Alert, FormHelperText } from "@mui/material";
 const API_URL = import.meta.env.VITE_API_URL;
+
+const isValueEmpty = (value) => {
+  if (typeof value === "string") {
+    return value.trim() === "";
+  }
+  return !value;
+};
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [createAlert, setCreateAlert] = useState(null);
+  const [showCreateErrors, setShowCreateErrors] = useState(false);
+  const [loginAlert, setLoginAlert] = useState(null);
+  const [showLoginErrors, setShowLoginErrors] = useState(false);
 
   //login button handles logging in the user
   const handleLogin = async ()=> {
+    setShowLoginErrors(true);
+    const loginRequired = [
+      { value: email, label: "Email" },
+      { value: password, label: "Password" },
+    ];
+
+    const missingFieldsList = loginRequired
+      .filter(({ value }) => isValueEmpty(value))
+      .map(({ label }) => label);
+
+    if (missingFieldsList.length) {
+      setLoginAlert({
+        severity: "warning",
+        message: "Please fill in the required fields before signing in.",
+        details: missingFieldsList,
+      });
+      return;
+    }
+
+    setShowLoginErrors(false);
+    setLoginAlert(null);
 
     const res = await fetch(`${API_URL}/auth/login`, {
       method: "POST",
@@ -30,6 +62,33 @@ export default function LoginPage() {
 
   //creat account button handles signing up the new user
   const handleCreateAccount = async ()=> {
+    setShowCreateErrors(true);
+    const requiredFields = [
+      { value: firstName, label: "First name" },
+      { value: lastName, label: "Last name" },
+      { value: dobMonth, label: "Birth month" },
+      { value: dobDay, label: "Birth day" },
+      { value: dobYear, label: "Birth year" },
+      { value: email, label: "Email" },
+      { value: password, label: "Password" },
+    ];
+
+    const missingFieldsList = requiredFields
+      .filter(({ value }) => isValueEmpty(value))
+      .map(({ label }) => label);
+
+    if (missingFieldsList.length) {
+      setCreateAlert({
+        severity: "warning",
+        message: "Please fill in the required fields before creating an account.",
+        details: missingFieldsList,
+      });
+      return;
+    }
+
+    setShowCreateErrors(false);
+    setCreateAlert(null);
+
     const res = await fetch(`${API_URL}/auth/register`, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
@@ -78,6 +137,9 @@ export default function LoginPage() {
             "& fieldset": { borderColor: "#f6fafe" },
             "&:hover fieldset": { borderColor: "#dadce0" },
             "&.Mui-focused fieldset": { borderColor: "#1a73e8" },
+            "&.Mui-error fieldset": { borderColor: "#d32f2f" },
+            "&.Mui-error:hover fieldset": { borderColor: "#d32f2f" },
+            "&.Mui-error.Mui-focused fieldset": { borderColor: "#d32f2f" },
           },
         
           /*  autofill styling (browser override) */   
@@ -94,7 +156,25 @@ export default function LoginPage() {
           "& .MuiOutlinedInput-notchedOutline": { borderColor: "#f6fafe" },
           "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#dadce0" },
           "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#1a73e8" },
+          "&.Mui-error .MuiOutlinedInput-notchedOutline": { borderColor: "#d32f2f" },
+          "&.Mui-error:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#d32f2f" },
+          "&.Mui-error.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#d32f2f" },
         };
+
+  const createFieldErrors = {
+    firstName: showCreateErrors && isValueEmpty(firstName),
+    lastName: showCreateErrors && isValueEmpty(lastName),
+    dobMonth: showCreateErrors && isValueEmpty(dobMonth),
+    dobDay: showCreateErrors && isValueEmpty(dobDay),
+    dobYear: showCreateErrors && isValueEmpty(dobYear),
+    email: showCreateErrors && isValueEmpty(email),
+    password: showCreateErrors && isValueEmpty(password),
+  };
+
+  const loginFieldErrors = {
+    email: showLoginErrors && isValueEmpty(email),
+    password: showLoginErrors && isValueEmpty(password),
+  };
 
 
   return (
@@ -154,6 +234,22 @@ export default function LoginPage() {
         {/* Input fields section */}
         {mode === "login" && (
         <>
+            {loginAlert && (
+              <Alert
+                severity={loginAlert.severity}
+                sx={{ mt: 1 }}
+                onClose={() => setLoginAlert(null)}
+              >
+                <Typography variant="body2">
+                  {loginAlert.message}
+                </Typography>
+                {loginAlert.details?.length > 0 && (
+                  <Typography variant="body2" component="p" sx={{ mt: 1 }}>
+                    Missing: {loginAlert.details.join(", ")}
+                  </Typography>
+                )}
+              </Alert>
+            )}
             <TextField
               label="Email or phone"
               variant="outlined"
@@ -162,6 +258,8 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               InputLabelProps={{ shrink: true }}
               sx={fieldSx}
+              error={loginFieldErrors.email}
+              helperText={loginFieldErrors.email ? "Required" : " "}
             />  
 
 
@@ -175,6 +273,8 @@ export default function LoginPage() {
             InputLabelProps={{ shrink: true }}
             variant="outlined"
             sx={fieldSx}
+            error={loginFieldErrors.password}
+            helperText={loginFieldErrors.password ? "Required" : " "}
           />
 
           <Link
@@ -203,7 +303,14 @@ export default function LoginPage() {
           <Link
             href="#"
             underline="hover"
-            onClick={(e) => {e.preventDefault(); setMode("create");}}
+            onClick={(e) => {
+              e.preventDefault();
+              setMode("create");
+              setShowCreateErrors(false);
+              setCreateAlert(null);
+              setShowLoginErrors(false);
+              setLoginAlert(null);
+            }}
             sx={{
               px: -2,
               py: 1,                        
@@ -239,6 +346,22 @@ export default function LoginPage() {
         {/* Create account mode input fields */}
         {mode === "create" && (
           <>
+            {createAlert && (
+              <Alert
+                severity={createAlert.severity}
+                sx={{ mt: 2 }}
+                onClose={() => setCreateAlert(null)}
+              >
+                <Typography variant="body2">
+                  {createAlert.message}
+                </Typography>
+                {createAlert.details?.length > 0 && (
+                  <Typography variant="body2" component="p" sx={{ mt: 1 }}>
+                    Missing: {createAlert.details.join(", ")}
+                  </Typography>
+                )}
+              </Alert>
+            )}
             {/*First / Last name feilds*/}
             <Box sx={{  mt: 1 }}>
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
@@ -249,14 +372,18 @@ export default function LoginPage() {
                   InputLabelProps={{ shrink: true}}
                   variant="outlined"
                   sx={fieldSx}
+                  error={createFieldErrors.firstName}
+                  helperText={createFieldErrors.firstName ? "Required" : " "}
                 />
                 <TextField
-                  label = "Last name (optional)"
+                  label = "Last name"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   InputLabelProps={{ shrink: true}}
                   variant="outlined"
                   sx={fieldSx}
+                  error={createFieldErrors.lastName}
+                  helperText={createFieldErrors.lastName ? "Required" : " "}
                 />
 
               </Box>
@@ -270,46 +397,52 @@ export default function LoginPage() {
                 }}
               >
                 {/* Month */}
-                <FormControl>
+                <FormControl error={createFieldErrors.dobMonth}>
                   <InputLabel shrink>Month</InputLabel>
                   <Select
                     value={dobMonth}
                     onChange={(e) => setDobMonth(e.target.value)}
                     displayEmpty
                     sx={selectSx}
+                    error={createFieldErrors.dobMonth}
                   >
                     {months.map((m) => (
                       <MenuItem key={m} value={m}>{m}</MenuItem>
                     ))}
                   </Select>
+                  {createFieldErrors.dobMonth && <FormHelperText>Required</FormHelperText>}
                 </FormControl>
 
                 {/* Day */}
-                <FormControl>
+                <FormControl error={createFieldErrors.dobDay}>
                   <InputLabel shrink>Day</InputLabel>
                   <Select
                     value={dobDay}
                     onChange={(e) => setDobDay(e.target.value)}
                     sx={selectSx}
+                    error={createFieldErrors.dobDay}
                   >
                     {days.map((d) => (
                       <MenuItem key={d} value={d}>{d}</MenuItem>
                     ))}
                   </Select>
+                  {createFieldErrors.dobDay && <FormHelperText>Required</FormHelperText>}
                 </FormControl>
 
                 {/* Year */}
-                <FormControl>
+                <FormControl error={createFieldErrors.dobYear}>
                   <InputLabel shrink>Year</InputLabel>
                   <Select
                     value={dobYear}
                     onChange={(e) => setDobYear(e.target.value)}
                     sx={selectSx}
+                    error={createFieldErrors.dobYear}
                   >
                     {years.map((y) => (
                       <MenuItem key={y} value={y}>{y}</MenuItem>
                     ))}
                   </Select>
+                  {createFieldErrors.dobYear && <FormHelperText>Required</FormHelperText>}
                 </FormControl>
 
               </Box>
@@ -341,6 +474,8 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               InputLabelProps={{ shrink: true }}
               sx={fieldSx}
+              error={createFieldErrors.email}
+              helperText={createFieldErrors.email ? "Required" : " "}
             />  
 
 
@@ -354,6 +489,8 @@ export default function LoginPage() {
             InputLabelProps={{ shrink: true }}
             variant="outlined"
             sx={fieldSx}
+            error={createFieldErrors.password}
+            helperText={createFieldErrors.password ? "Required" : " "}
           />
 
               <Box 
@@ -367,7 +504,14 @@ export default function LoginPage() {
                 <Link
                   href="#"
                   underline="hover"
-                  onClick={(e) => {e.preventDefault(); setMode("login");}}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setMode("login");
+                    setShowCreateErrors(false);
+                    setCreateAlert(null);
+                    setShowLoginErrors(false);
+                    setLoginAlert(null);
+                  }}
                   sx={{
                     px: 1.5,
                     py: 0.8,

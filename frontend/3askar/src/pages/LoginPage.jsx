@@ -1,12 +1,59 @@
 import React, {useState} from "react";
 import { Box, Paper, Typography, TextField, Link, Button, FormControl, InputLabel, Select, MenuItem } from "@mui/material";
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const handleNext = ()=> {
-    alert(`Next clicked with email: ${email || "(empty)"} - UI only`);
+
+  //login button handles logging in the user
+  const handleLogin = async ()=> {
+
+    const res = await fetch(`${API_URL}/auth/login`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"}, // read in json basically
+      credentials: "include", //this is to prvoide cookies fo the session
+      body: JSON.stringify({
+        email: email,
+        password: password
+      })
+    })
+
+    if (!res.ok){
+      const errorMessage = await res.text();
+      console.log(errorMessage);
+    } else{
+      const message = await res.text();
+      console.log(message);
+    }
   };
+
+  //creat account button handles signing up the new user
+  const handleCreateAccount = async ()=> {
+    const res = await fetch(`${API_URL}/auth/register`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      credentials: "include",
+      body: JSON.stringify({
+        firstName, 
+        lastName,
+        dobMonth,
+        dobDay,
+        dobYear,
+        email,
+        password
+      }),
+    })
+
+    if (!res.ok){
+      const errorMessage = await res.text();
+      console.log(errorMessage);
+    } else {
+      const message = await res.text();
+      console.log(message);
+    }
+  }
+
   const [mode, setMode] = useState("login"); //login or create pages
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -16,9 +63,9 @@ export default function LoginPage() {
   const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const days   = Array.from({ length: 31 }, (_, i) => String(i + 1));
   const years  = Array.from({ length: 120 }, (_, i) => String(new Date().getFullYear() - i));
-  months.freeze();
-  days.freeze();
-  years.freeze();
+  Object.freeze(months);
+  Object.freeze(days);
+  Object.freeze(years);
   //const [gender, setGender] = useState("");
 
 
@@ -172,7 +219,7 @@ export default function LoginPage() {
 
           <Button
             variant="contained"
-            onClick={handleNext}
+            onClick={handleLogin}
             sx={{
               textTransform: "none",
               px: 3,
@@ -180,7 +227,7 @@ export default function LoginPage() {
               "&:hover": { bgcolor: "#185abc" },
             }}
           >
-            Next
+            Sign in
           </Button>
         </Box>
 
@@ -339,9 +386,9 @@ export default function LoginPage() {
                     bgcolor: "#1a73e8",
                     "&:hover": { bgcolor: "#1765cc" },
                   }}
-                  onClick={() => alert("Create account (UI only)")}
+                  onClick={handleCreateAccount}
                 >
-                  Next
+                  Create Account
                 </Button>
                                     
               </Box>     

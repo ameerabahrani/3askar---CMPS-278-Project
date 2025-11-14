@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 
 import {
     Box, 
@@ -41,6 +42,7 @@ import DriveFolderUploadOutlinedIcon from '@mui/icons-material/DriveFolderUpload
 
 
 const Sidebar = () => {
+  const navigate = useNavigate();
   const [width, setWidth] = useState(240);
   const [isResizing, setIsResizing] = useState(false);
   const MIN_WIDTH = 200;
@@ -111,16 +113,11 @@ const Sidebar = () => {
 
 
     const sideItems = [
-        {id:"home", label: "Home", icon: <HomeOutlinedIcon />, activeIcon: <HomeFilledIcon color="primary" />}, 
-        {id:"drive", label: "My Drive", icon: <DriveFileMoveOutlinedIcon />, activeIcon: <DriveFileMoveOutlinedIcon color="primary" />}, 
-        {id:"computers", label: "Computers", icon: <DevicesIcon />, activeIcon: <DevicesIcon color="primary" />}, 
-        // {id: "divider-1", type: "spacer"},
-        {id:"shared", label: "Shared with me", icon: <PeopleAltOutlinedIcon />, activeIcon: <PeopleAltIcon color="primary" />}, 
-        {id:"recent", label: "Recent", icon: <WatchLaterOutlinedIcon />, activeIcon: <WatchLaterIcon color="primary" />}, 
-        {id:"starred", label: "Starred", icon: <StarBorderOutlinedIcon />, activeIcon: <StarIcon color="primary" />}, 
-        // {id: "divider-2", type: "spacer"},
-        {id:"spam", label: "Spam", icon: <ReportGmailerrorredOutlinedIcon />, activeIcon: <ReportIcon color="primary" />}, 
-        {id:"bin", label: "Trash", icon: <DeleteOutlinedIcon />, activeIcon: <DeleteIcon color="primary" />}, 
+        {id:"home", label: "Home", path: "/home", icon: <HomeOutlinedIcon/>, activeIcon: <HomeFilledIcon color="primary" />}, 
+        {id:"drive", label: "My Drive", path:"/mydrive", icon: <DriveFileMoveOutlinedIcon />, activeIcon: <DriveFileMoveOutlinedIcon color="primary" />}, 
+        {id:"shared", label: "Shared with me", path:"/shared", icon: <PeopleAltOutlinedIcon />, activeIcon: <PeopleAltIcon color="primary" />}, 
+        {id:"starred", label: "Starred", path:"/starred",icon: <StarBorderOutlinedIcon />, activeIcon: <StarIcon color="primary" />}, 
+        {id:"bin", label: "Trash", path:"/bin", icon: <DeleteOutlinedIcon />, activeIcon: <DeleteIcon color="primary" />}, 
         {id:"storage", label: `Storage (${usedStorage}% full)`, icon: <CloudOutlinedIcon />, activeIcon: <WbCloudyIcon color="primary" />}, 
 
     ];
@@ -139,13 +136,13 @@ const Sidebar = () => {
             width, 
             height: "100vh", 
             bgcolor: "#f8fafd",
-            borderRight: "1px solid #e0e0e0",
             display: "flex",
             flexDirection: "column",
             p: 1.8,
             boxSizing: "border-box",
             position: "relative", 
             transition:"width 0.1s linear",
+            mt: 7.5,
         }}
 
         >
@@ -219,7 +216,10 @@ const Sidebar = () => {
                         px: 0.8,
                     }}>
                        <ListItemButton
-                        onClick={()=> setActive(item.id)}
+                        onClick={()=> {
+                          setActive(item.id);
+                          if(item.path) navigate(item.path);
+                        }}
                           sx={{
 
                             alignSelf: 'flex-start',

@@ -10,11 +10,22 @@ import MenuItem from "@mui/material/MenuItem";
 import ListIcon from "@mui/icons-material/ViewList";
 import GridViewIcon from "@mui/icons-material/GridView";
 import MenuBar from "./MenuBar";
-
-
-
+import { useFiles } from "../context/fileContext.jsx";
 
 function Homepage() {
+  const{ files, loading } = useFiles();
+
+  if (loading) {
+    return (
+      <Typography sx={{ p: 2 }}>Loading recent files...</Typography>
+    );
+  }
+
+  const recentFiles = [...files]
+  .filter((file) => !file.isDeleted)
+  .sort((a, b) => new Date(b.lastAccessedAt) - new Date(a.lastAccessedAt))
+  .slice(0, 20); // Get top 5 recent files
+
   const [anchorEl, setAnchorEl] = React.useState(null);
   const open = Boolean(anchorEl);
   const handleClick = (event) => setAnchorEl(event.currentTarget);

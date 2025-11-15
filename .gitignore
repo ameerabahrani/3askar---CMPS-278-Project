@@ -10,3 +10,4 @@ frontend/**/vite.config.js.timestamp*
 # System files
 .DS_Store
 Thumbs.db
+frontend/3askar/.env

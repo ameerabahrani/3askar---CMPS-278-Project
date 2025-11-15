@@ -25,7 +25,8 @@ app.use(
   session({
     name: "session",
     keys: [process.env.SESSION_SECRET],
-    maxAge: 24 * 60 * 60 * 1000, // 1 day
+    //maxAge: 24 * 60 * 60 * 1000, // 1 day
+    //^ no global maxAGE keep it as default cookie session so that without remmeberMe it ends when the browser is closed
   })
 );
 

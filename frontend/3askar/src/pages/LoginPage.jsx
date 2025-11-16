@@ -1,5 +1,5 @@
 import React, {useState} from "react";
-import { Box, Paper, Typography, TextField, Link, Button, FormControl, InputLabel, Select, MenuItem, Alert, FormHelperText } from "@mui/material";
+import { Box, Paper, Typography, TextField, Link, Button, FormControl, InputLabel, Select, MenuItem, Alert, FormHelperText, CircularProgress } from "@mui/material";
 const API_URL = import.meta.env.VITE_API_URL;
 import { useNavigate } from "react-router-dom";
 
@@ -38,6 +38,7 @@ export default function LoginPage() {
   const [showCreateErrors, setShowCreateErrors] = useState(false);
   const [loginAlert, setLoginAlert] = useState(null);
   const [showLoginErrors, setShowLoginErrors] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const navigate = useNavigate();
 
 
@@ -161,6 +162,15 @@ export default function LoginPage() {
     }
   }
 
+  const handleGoogleLogin = () => {
+    if (isGoogleLoading) {
+      return;
+    }
+    setIsGoogleLoading(true);
+    const googleAuthUrl = "http://localhost:5000/auth/google";
+    window.location.href = googleAuthUrl;
+  };
+
   const [mode, setMode] = useState("login"); //login or create pages
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -257,385 +267,452 @@ export default function LoginPage() {
 
 
   return (
-    <Box 
-      sx={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        bgcolor: "#f5f5f5",
-        p: 2,
-      }}
-    >
-      {/* White card*/}
-      <Paper
-        elevation={3}
+    <div   
+    
+    style={{
+    position: "fixed",
+    inset: 0,
+    backgroundColor: "#f5f5f5",
+    margin: 0,
+    padding: 0,
+    width: "100vw",
+    height: "100vh",
+    overflow: "auto",
+  }}>
+      <Box 
         sx={{
-          width: "10.6cm" ,
-          maxWidth: "92vw",
-          p: 4,
-          borderRadius: 2,
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          bgcolor: "#f5f5f5",
+          p: 2,
         }}
-
       >
-        {/* Header Section */}
-        
-
-        <Box sx={{ display: "grid", justifyItems: "center", mb: 2 }}>
-          {/* Google wordMark build with colored spans*/}
-          <Typography
-            sx={{
-              fontSize: 28,
-              letterSpacing: 0.2,
-              mb: 1,
-              userSelect: "none",
-            }}
-          >
-            <Box component="span" sx={{ color: "#1a73e8", fontWeight: 549}}>G</Box>
-            <Box component="span" sx={{ color: "#ea4335", fontWeight: 549}}>o</Box>
-            <Box component="span" sx={{ color: "#fbbc05", fontWeight: 549}}>o</Box>
-            <Box component="span" sx={{ color: "#1a73e8", fontWeight: 549}}>g</Box>
-            <Box component="span" sx={{ color: "#34a853", fontWeight: 549}}>l</Box>
-            <Box component="span" sx={{ color: "#ea4335", fontWeight: 549}}>e</Box>
-          </Typography>
-
-          {/*Main heading*/}
-          <Typography variant="h5" sx={{ fontWeight: 500, mb: 0.5 }}>
-            {mode === "login" ? "Sign in" : "Create a Google Account"}
-          </Typography>
-
-          {/* subtitle */}
-          <Typography variant="body2" color="blackSecondary" sx={{ mb: 1 }}>
-            to continue to Google Drive
-          </Typography>
-
-        </Box>
-        
-        {/* Input fields section */}
-        {mode === "login" && (
-        <>
-            {loginAlert && (
-              <Alert
-                severity={loginAlert.severity}
-                sx={{ mt: 1 }}
-                onClose={() => setLoginAlert(null)}
-              >
-                <Typography variant="body2">
-                  {loginAlert.message}
-                </Typography>
-                {loginAlert.details?.length > 0 && (
-                  <Typography variant="body2" component="p" sx={{ mt: 1 }}>
-                    Missing: {loginAlert.details.join(", ")}
-                  </Typography>
-                )}
-              </Alert>
-            )}
-            <TextField
-              label="Email"
-              variant="outlined"
-              fullWidth
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              sx={fieldSx}
-              error={loginFieldErrors.email}
-              helperText={loginEmailErrorMessage || " "}
-            />  
-
-
-
-          <TextField
-            label="Enter your password"
-            type="password"
-            fullWidth
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            variant="outlined"
-            sx={fieldSx}
-            error={loginFieldErrors.password}
-            helperText={loginFieldErrors.password ? "Required" : " "}
-          />
-
-          <Link
-          href="#"
-          underline="none"               
-          onClick={(e) => {
-            e.preventDefault();
-            navigate("/forgot-password");
-          }}
-
+        {/* White card*/}
+        <Paper
+          elevation={3}
           sx={{
-            mt: 1.5,
-            display: "inline-block",
-            color: "#1a73e8",            
-            fontWeight: 400,
-            "&:hover": {
-              color: "#1a73e8",          
-              textDecoration: "none",    
-              backgroundColor: "transparent",
-              cursor: "pointer",         
-            },
+            width: "10.6cm" ,
+            maxWidth: "92vw",
+            p: 4,
+            borderRadius: 2,
           }}
+
         >
-          Forgot Password?
-        </Link>
+          {/* Header Section */}
+          
+
+          <Box sx={{ display: "grid", justifyItems: "center", mb: 2 }}>
+            {/* Google wordMark build with colored spans*/}
+            <Typography
+              sx={{
+                fontSize: 28,
+                letterSpacing: 0.2,
+                mb: 1,
+                userSelect: "none",
+              }}
+            >
+              <Box component="span" sx={{ color: "#1a73e8", fontWeight: 549}}>G</Box>
+              <Box component="span" sx={{ color: "#ea4335", fontWeight: 549}}>o</Box>
+              <Box component="span" sx={{ color: "#fbbc05", fontWeight: 549}}>o</Box>
+              <Box component="span" sx={{ color: "#1a73e8", fontWeight: 549}}>g</Box>
+              <Box component="span" sx={{ color: "#34a853", fontWeight: 549}}>l</Box>
+              <Box component="span" sx={{ color: "#ea4335", fontWeight: 549}}>e</Box>
+            </Typography>
+
+            {/*Main heading*/}
+            <Typography variant="h5" sx={{ fontWeight: 500, mb: 0.5 }}>
+              {mode === "login" ? "Sign in" : "Create a Google Account"}
+            </Typography>
+
+            {/* subtitle */}
+            <Typography variant="body2" color="blackSecondary" sx={{ mb: 1 }}>
+              to continue to Google Drive
+            </Typography>
+
+          </Box>
+          
+          {/* Input fields section */}
+          {mode === "login" && (
+          <>
+              {loginAlert && (
+                <Alert
+                  severity={loginAlert.severity}
+                  sx={{ mt: 1 }}
+                  onClose={() => setLoginAlert(null)}
+                >
+                  <Typography variant="body2">
+                    {loginAlert.message}
+                  </Typography>
+                  {loginAlert.details?.length > 0 && (
+                    <Typography variant="body2" component="p" sx={{ mt: 1 }}>
+                      Missing: {loginAlert.details.join(", ")}
+                    </Typography>
+                  )}
+                </Alert>
+              )}
+              <TextField
+                label="Email"
+                variant="outlined"
+                fullWidth
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={fieldSx}
+                error={loginFieldErrors.email}
+                helperText={loginEmailErrorMessage || " "}
+              />  
 
 
-        {/* Bottom row */}
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 3 }}>
-          <Link
+
+            <TextField
+              label="Enter your password"
+              type="password"
+              fullWidth
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              variant="outlined"
+              sx={fieldSx}
+              error={loginFieldErrors.password}
+              helperText={loginFieldErrors.password ? "Required" : " "}
+            />
+
+            <Link
             href="#"
-            underline="hover"
+            underline="none"               
             onClick={(e) => {
               e.preventDefault();
-              setMode("create");
-              setShowCreateErrors(false);
-              setCreateAlert(null);
-              setShowLoginErrors(false);
-              setLoginAlert(null);
+              navigate("/forgot-password");
             }}
+
             sx={{
-              px: -2,
-              py: 1,                        
-              borderRadius: 1,              
+              mt: 1.5,
+              display: "inline-block",
+              color: "#1a73e8",            
+              fontWeight: 400,
               "&:hover": {
-                backgroundColor: "#f6fafe", 
-                textDecoration: "none",     
+                color: "#1a73e8",          
+                textDecoration: "none",    
+                backgroundColor: "transparent",
+                cursor: "pointer",         
               },
             }}
           >
-            Create account
+            Forgot Password?
           </Link>
 
-          <Button
-            variant="contained"
-            onClick={handleLogin}
+
+          {/* Bottom row */}
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 3 }}>
+            <Link
+              href="#"
+              underline="hover"
+              onClick={(e) => {
+                e.preventDefault();
+                setMode("create");
+                setShowCreateErrors(false);
+                setCreateAlert(null);
+                setShowLoginErrors(false);
+                setLoginAlert(null);
+              }}
+              sx={{
+                px: -2,
+                py: 1,                        
+                borderRadius: 1,              
+                "&:hover": {
+                  backgroundColor: "#f6fafe", 
+                  textDecoration: "none",     
+                },
+              }}
+            >
+              Create account
+            </Link>
+
+            <Button
+              variant="contained"
+              onClick={handleLogin}
+              sx={{
+                textTransform: "none",
+                px: 3,
+                bgcolor: "#1a73e8",
+                "&:hover": { bgcolor: "#185abc" },
+              }}
+            >
+              Sign in
+            </Button>
+          </Box>
+          <Box
             sx={{
-              textTransform: "none",
-              px: 3,
-              bgcolor: "#1a73e8",
-              "&:hover": { bgcolor: "#185abc" },
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+              mt: 4,
             }}
           >
-            Sign in
-          </Button>
-        </Box>
+            <Box sx={{ flex: 1, height: 1, bgcolor: "#dadce0" }} />
+            <Typography variant="body2" sx={{ color: "#5f6368", fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.8 }}>
+              or
+            </Typography>
+            <Box sx={{ flex: 1, height: 1, bgcolor: "#dadce0" }} />
+          </Box>
 
-
-        </>
-
-        )}
-
-        {/* Create account mode input fields */}
-        {mode === "create" && (
-          <>
-            {createAlert && (
-              <Alert
-                severity={createAlert.severity}
-                sx={{ mt: 2 }}
-                onClose={() => setCreateAlert(null)}
-              >
-                <Typography variant="body2">
-                  {createAlert.message}
-                </Typography>
-                {createAlert.details?.length > 0 && (
-                  <Typography variant="body2" component="p" sx={{ mt: 1 }}>
-                    Missing: {createAlert.details.join(", ")}
-                  </Typography>
-                )}
-              </Alert>
-            )}
-            {/*First / Last name feilds*/}
-            <Box sx={{  mt: 1 }}>
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-                <TextField
-                  label = "First name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  InputLabelProps={{ shrink: true}}
-                  variant="outlined"
-                  sx={fieldSx}
-                  error={createFieldErrors.firstName}
-                  helperText={createFieldErrors.firstName ? "Required" : " "}
-                />
-                <TextField
-                  label = "Last name"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  InputLabelProps={{ shrink: true}}
-                  variant="outlined"
-                  sx={fieldSx}
-                  error={createFieldErrors.lastName}
-                  helperText={createFieldErrors.lastName ? "Required" : " "}
-                />
-
-              </Box>
-              {/* DOB fields */}
-              <Box
-                sx={{ 
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" },
-                  gap: 2,
-                  mt: 2, 
-                }}
-              >
-                {/* Month */}
-                <FormControl error={createFieldErrors.dobMonth}>
-                  <InputLabel shrink>Month</InputLabel>
-                  <Select
-                    value={dobMonth}
-                    onChange={(e) => setDobMonth(e.target.value)}
-                    displayEmpty
-                    sx={selectSx}
-                    error={createFieldErrors.dobMonth}
-                  >
-                    {months.map((m) => (
-                      <MenuItem key={m} value={m}>{m}</MenuItem>
-                    ))}
-                  </Select>
-                  {createFieldErrors.dobMonth && <FormHelperText>Required</FormHelperText>}
-                </FormControl>
-
-                {/* Day */}
-                <FormControl error={createFieldErrors.dobDay}>
-                  <InputLabel shrink>Day</InputLabel>
-                  <Select
-                    value={dobDay}
-                    onChange={(e) => setDobDay(e.target.value)}
-                    sx={selectSx}
-                    error={createFieldErrors.dobDay}
-                  >
-                    {days.map((d) => (
-                      <MenuItem key={d} value={d}>{d}</MenuItem>
-                    ))}
-                  </Select>
-                  {createFieldErrors.dobDay && <FormHelperText>Required</FormHelperText>}
-                </FormControl>
-
-                {/* Year */}
-                <FormControl error={createFieldErrors.dobYear}>
-                  <InputLabel shrink>Year</InputLabel>
-                  <Select
-                    value={dobYear}
-                    onChange={(e) => setDobYear(e.target.value)}
-                    sx={selectSx}
-                    error={createFieldErrors.dobYear}
-                  >
-                    {years.map((y) => (
-                      <MenuItem key={y} value={y}>{y}</MenuItem>
-                    ))}
-                  </Select>
-                  {createFieldErrors.dobYear && <FormHelperText>Required</FormHelperText>}
-                </FormControl>
-
-              </Box>
-              
-              {/* Gender field */}
-              {/* <FormControl sx={{ mt: 2, minWidth: 150 }}>
-                <InputLabel shrink>Gender</InputLabel>
-                <Select
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  sx={selectSx}
-                >
-                  {["Female", "Male", "Prefer not to say", "Custom"].map((g) => (
-                    <MenuItem key={g} value={g}>
-                      {g}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>  */}
-              
-
-              {/*input field email and pass*/}
-
-              <TextField
-              label="Email"
+          <Box sx={{ display: "flex", justifyContent: "center" }}>
+            <Button
               variant="outlined"
+              onClick={handleGoogleLogin}
+              disabled={isGoogleLoading}
+              sx={{
+                mt: 3,
+                borderColor: "#dadce0",
+                color: "#3c4043",
+                textTransform: "none",
+                fontWeight: 500,
+                px: 3,
+                py: 1.2,
+                borderRadius: "999px",
+                gap: 1.5,
+                boxShadow: "0 1px 2px rgba(60,64,67,0.3)",
+                backgroundColor: "#fff",
+                width: "fit-content",
+                transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                animation: isGoogleLoading ? "pulseEffect 1.6s ease-in-out infinite" : "none",
+                "@keyframes pulseEffect": {
+                  "0%": { boxShadow: "0 0 0 0 rgba(26,115,232,0.3)" },
+                  "70%": { boxShadow: "0 0 0 12px rgba(26,115,232,0)" },
+                  "100%": { boxShadow: "0 0 0 0 rgba(26,115,232,0)" },
+                },
+                "&:hover": {
+                  borderColor: "#dadce0",
+                  backgroundColor: "#f8f9fa",
+                  transform: "translateY(-1px)",
+                },
+                "&.Mui-disabled": {
+                  color: "#3c4043",
+                },
+              }}
+            >
+              <Box
+                component="img"
+                src="https://developers.google.com/identity/images/g-logo.png"
+                alt="Google logo"
+                sx={{ width: 20, height: 20 }}
+              />
+              {isGoogleLoading ? "Continuing with Google" : "Continue with Google"}
+              {isGoogleLoading && (
+                <CircularProgress size={16} sx={{ color: "#1a73e8" }} />
+              )}
+            </Button>
+          </Box>
+
+
+
+          </>
+
+          )}
+
+          {/* Create account mode input fields */}
+          {mode === "create" && (
+            <>
+              {createAlert && (
+                <Alert
+                  severity={createAlert.severity}
+                  sx={{ mt: 2 }}
+                  onClose={() => setCreateAlert(null)}
+                >
+                  <Typography variant="body2">
+                    {createAlert.message}
+                  </Typography>
+                  {createAlert.details?.length > 0 && (
+                    <Typography variant="body2" component="p" sx={{ mt: 1 }}>
+                      Missing: {createAlert.details.join(", ")}
+                    </Typography>
+                  )}
+                </Alert>
+              )}
+              {/*First / Last name feilds*/}
+              <Box sx={{  mt: 1 }}>
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+                  <TextField
+                    label = "First name"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    InputLabelProps={{ shrink: true}}
+                    variant="outlined"
+                    sx={fieldSx}
+                    error={createFieldErrors.firstName}
+                    helperText={createFieldErrors.firstName ? "Required" : " "}
+                  />
+                  <TextField
+                    label = "Last name"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    InputLabelProps={{ shrink: true}}
+                    variant="outlined"
+                    sx={fieldSx}
+                    error={createFieldErrors.lastName}
+                    helperText={createFieldErrors.lastName ? "Required" : " "}
+                  />
+
+                </Box>
+                {/* DOB fields */}
+                <Box
+                  sx={{ 
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" },
+                    gap: 2,
+                    mt: 2, 
+                  }}
+                >
+                  {/* Month */}
+                  <FormControl error={createFieldErrors.dobMonth}>
+                    <InputLabel shrink>Month</InputLabel>
+                    <Select
+                      value={dobMonth}
+                      onChange={(e) => setDobMonth(e.target.value)}
+                      displayEmpty
+                      sx={selectSx}
+                      error={createFieldErrors.dobMonth}
+                    >
+                      {months.map((m) => (
+                        <MenuItem key={m} value={m}>{m}</MenuItem>
+                      ))}
+                    </Select>
+                    {createFieldErrors.dobMonth && <FormHelperText>Required</FormHelperText>}
+                  </FormControl>
+
+                  {/* Day */}
+                  <FormControl error={createFieldErrors.dobDay}>
+                    <InputLabel shrink>Day</InputLabel>
+                    <Select
+                      value={dobDay}
+                      onChange={(e) => setDobDay(e.target.value)}
+                      sx={selectSx}
+                      error={createFieldErrors.dobDay}
+                    >
+                      {days.map((d) => (
+                        <MenuItem key={d} value={d}>{d}</MenuItem>
+                      ))}
+                    </Select>
+                    {createFieldErrors.dobDay && <FormHelperText>Required</FormHelperText>}
+                  </FormControl>
+
+                  {/* Year */}
+                  <FormControl error={createFieldErrors.dobYear}>
+                    <InputLabel shrink>Year</InputLabel>
+                    <Select
+                      value={dobYear}
+                      onChange={(e) => setDobYear(e.target.value)}
+                      sx={selectSx}
+                      error={createFieldErrors.dobYear}
+                    >
+                      {years.map((y) => (
+                        <MenuItem key={y} value={y}>{y}</MenuItem>
+                      ))}
+                    </Select>
+                    {createFieldErrors.dobYear && <FormHelperText>Required</FormHelperText>}
+                  </FormControl>
+
+                </Box>
+                
+                {/* Gender field */}
+                {/* <FormControl sx={{ mt: 2, minWidth: 150 }}>
+                  <InputLabel shrink>Gender</InputLabel>
+                  <Select
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    sx={selectSx}
+                  >
+                    {["Female", "Male", "Prefer not to say", "Custom"].map((g) => (
+                      <MenuItem key={g} value={g}>
+                        {g}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>  */}
+                
+
+                {/*input field email and pass*/}
+
+                <TextField
+                label="Email"
+                variant="outlined"
+                fullWidth
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={fieldSx}
+                error={createFieldErrors.email}
+                helperText={createEmailErrorMessage || " "}
+              />  
+
+
+
+            <TextField
+              label="Enter your password"
+              type="password"
               fullWidth
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               InputLabelProps={{ shrink: true }}
+              variant="outlined"
               sx={fieldSx}
-              error={createFieldErrors.email}
-              helperText={createEmailErrorMessage || " "}
-            />  
+              error={createFieldErrors.password}
+              helperText={createPasswordErrorMessage || " "}
+            />
 
-
-
-          <TextField
-            label="Enter your password"
-            type="password"
-            fullWidth
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            variant="outlined"
-            sx={fieldSx}
-            error={createFieldErrors.password}
-            helperText={createPasswordErrorMessage || " "}
-          />
-
-              <Box 
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  mt: 3,
-                }}
-              >
-                <Link
-                  href="#"
-                  underline="hover"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setMode("login");
-                    setShowCreateErrors(false);
-                    setCreateAlert(null);
-                    setShowLoginErrors(false);
-                    setLoginAlert(null);
-                  }}
+                <Box 
                   sx={{
-                    px: 1.5,
-                    py: 0.8,
-                    borderRadius: 1,
-                    "&:hover": { backgroundColor: "#f6fafe",},
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mt: 3,
                   }}
                 >
-                  Sign in
-                </Link>
+                  <Link
+                    href="#"
+                    underline="hover"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setMode("login");
+                      setShowCreateErrors(false);
+                      setCreateAlert(null);
+                      setShowLoginErrors(false);
+                      setLoginAlert(null);
+                    }}
+                    sx={{
+                      px: 1.5,
+                      py: 0.8,
+                      borderRadius: 1,
+                      "&:hover": { backgroundColor: "#f6fafe",},
+                    }}
+                  >
+                    Sign in
+                  </Link>
 
-                <Button
-                  variant="contained"
-                  sx={{
-                    textTransform: "none",
-                    px: 3,
-                    bgcolor: "#1a73e8",
-                    "&:hover": { bgcolor: "#1765cc" },
-                  }}
-                  onClick={handleCreateAccount}
-                >
-                  Create Account
-                </Button>
-                                    
-              </Box>     
+                  <Button
+                    variant="contained"
+                    sx={{
+                      textTransform: "none",
+                      px: 3,
+                      bgcolor: "#1a73e8",
+                      "&:hover": { bgcolor: "#1765cc" },
+                    }}
+                    onClick={handleCreateAccount}
+                  >
+                    Create Account
+                  </Button>
+                                      
+                </Box>     
 
-            </Box>
+              </Box>
 
-            
-           </>  // react fragments tags
-        )}
-        
-        
-
-
-
-        
-
-      </Paper>
-
-      
-    </Box>
+              
+            </>  // react fragments tags
+          )}
+        </Paper>
+      </Box>
+    </div>
   );
 }
 /*END */

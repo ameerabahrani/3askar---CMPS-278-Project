@@ -1,28 +1,3 @@
-// import { createContext, useContext, useState, useEffect } from "react";
-
-// export const FileContext = createContext();
-
-
-// export const FileProvider = ({ children }) => {
-//   const [files, setFiles] = useState([]);
-//   const [loading, setLoading] = useState(true);
-
-//   // Simulate fetching or connect your backend here
-//   useEffect(() => {
-//     // fetch("http://localhost:3000/files") ...
-//     setFiles([]); 
-//     setLoading(false);
-//   }, []);
-
-//   return (
-//     <FileContext.Provider value={{ files, setFiles, loading }}>
-//       {children}
-//     </FileContext.Provider>
-//   );
-// };
-
-// export const useFiles = () => useContext(FileContext);
-
 import { createContext, useContext, useState, useEffect } from "react";
 
 export const FileContext = createContext();

@@ -3,6 +3,7 @@ import { Box, Typography, IconButton, Menu, MenuItem } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import MenuBar from "../components/MenuBar";
 import StarIcon from "@mui/icons-material/Star";
+import { useFiles } from "../context/fileContext.jsx";
 
 function Starred() {
   const [sortField, setSortField] = React.useState("name");

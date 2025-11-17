@@ -12,20 +12,20 @@ import ListIcon from "@mui/icons-material/ViewList";
 import GridViewIcon from "@mui/icons-material/GridView";
 import MenuBar from "./MenuBar";
 import FileKebabMenu from "./FileKebabMenu";
-import { getFolders, createFolder, updateFolder, getBreadcrumb, getStarredFolders, getTrashFolders, getSharedFolders, getRecentFolders } from "../api/foldersApi";
+import { getFolders, createFolder, updateFolder, getBreadcrumb, getStarredFolders, getTrashFolders, getSharedFolders, getRecentFolders, copyFolder } from "../api/foldersApi";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 
 
-
-function Homepage() {
+function Homepage({ initialView = "MY_DRIVE" }) {
   const [anchorEl, setAnchorEl] = React.useState(null);
   const open = Boolean(anchorEl);
   const handleClick = (event) => setAnchorEl(event.currentTarget);
   const handleClose = () => setAnchorEl(null);
   const [viewMode, setViewMode] = React.useState("list");
 
-// "MY_DRIVE" | "STARRED" | "TRASH" | "SHARED" | "RECENT"
-  const [currentView, setCurrentView] = React.useState("MY_DRIVE");
+
+ 
 
   // Folder action menu (for folders in "Suggested folders")
   const [folderMenuAnchor, setFolderMenuAnchor] = React.useState(null);
@@ -45,7 +45,20 @@ function Homepage() {
 
 
   //which folder are we currently viewing? null = My Drive root
-  const [currentFolderId, setCurrentFolderId] = React.useState(null);
+  const {folderId} = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+const [currentFolderId, setCurrentFolderId] = React.useState(folderId || null);
+
+  // view based on path or prop
+  const [currentView, setCurrentView] = React.useState(initialView);
+  // Folder comes from URL now:
+  React.useEffect(() => {
+    setCurrentFolderId(folderId || null);
+  }, [folderId]);
+
+
 
   //breadcrumb data for current folder
   const [breadcrumb, setBreadcrumb] = React.useState([]);
@@ -165,14 +178,12 @@ function Homepage() {
   }, [currentView, currentFolderId]);
 
 
+    
     const handleFolderOpen = (folderId) => {
-      // If we’re in Starred or Trash and click a folder,
-      // open it in My Drive context.
-      if (currentView !== "MY_DRIVE") {
-        setCurrentView("MY_DRIVE");
-      }
-      setCurrentFolderId(folderId);
+      // Go to /folders/:id → triggers useParams → triggers data load
+      navigate(`/folders/${folderId}`);
     };
+
 
 
     const handleCreateFolder = async () => {
@@ -327,6 +338,36 @@ function Homepage() {
   },
 ];
 
+const handleCopyFolder = async () => {
+  if (!selectedFolder) return;
+
+  const defaultName = `${selectedFolder.name} (copy)`;
+  const newName = window.prompt("Name for the copy:", defaultName);
+  if (newName === null) return; // user cancelled
+
+  const finalName =
+    newName && newName.trim() ? newName.trim() : defaultName;
+
+  try {
+    setFoldersLoading(true);
+    setFoldersError(null);
+
+    await copyFolder(selectedFolder._id, {
+      name: finalName,
+      parentFolder: currentView === "MY_DRIVE" ? currentFolderId : null,
+    });
+
+    await loadFoldersForCurrentView();
+  } catch (err) {
+    console.error("Failed to copy folder", err);
+    setFoldersError(err.message || "Failed to copy folder");
+  } finally {
+    setFoldersLoading(false);
+    handleFolderMenuClose();
+  }
+};
+
+
 
   return (
     <Box
@@ -351,8 +392,7 @@ function Homepage() {
           size="small"
           variant={currentView === "MY_DRIVE" ? "contained" : "text"}
           onClick={() => {
-            setCurrentView("MY_DRIVE");
-            setCurrentFolderId(null);
+            navigate("/drive")
           }}
         >
           My Drive
@@ -361,8 +401,7 @@ function Homepage() {
           size="small"
           variant={currentView === "STARRED" ? "contained" : "text"}
           onClick={() => {
-            setCurrentView("STARRED");
-            setCurrentFolderId(null);
+            navigate("/starred")
           }}
         >
           Starred
@@ -371,8 +410,7 @@ function Homepage() {
           size="small"
           variant={currentView === "TRASH" ? "contained" : "text"}
           onClick={() => {
-            setCurrentView("TRASH");
-            setCurrentFolderId(null);
+            navigate("/trash")
           }}
         >
           Trash
@@ -381,8 +419,7 @@ function Homepage() {
           size="small"
           variant={currentView === "SHARED" ? "contained" : "text"}
           onClick={() => {
-            setCurrentView("SHARED");
-            setCurrentFolderId(null);
+            navigate("/shared")
           }}
         >
           Shared with me
@@ -392,8 +429,7 @@ function Homepage() {
           size="small"
           variant={currentView === "RECENT" ? "contained" : "text"}
           onClick={() => {
-            setCurrentView("RECENT");
-            setCurrentFolderId(null);
+           navigate("/recent")
           }}
         >
           Recent
@@ -413,7 +449,7 @@ function Homepage() {
             textDecoration: "underline",
             width: "fit-content",
           }}
-          onClick={() => setCurrentFolderId(null)}
+          onClick={() => navigate("/drive")}
         >
           ← Back to My Drive
         </Typography>
@@ -435,13 +471,16 @@ function Homepage() {
               const isLast = index === breadcrumb.length - 1;
               const isRoot = item._id === null;
 
-              // When clicking breadcrumb:
-              // - null  → go to My Drive (currentFolderId = null)
-              // - id    → go to that folder
               const handleClickCrumb = () => {
-                if (isLast) return; // don't re-load the same folder
-                setCurrentFolderId(item._id || null);
+                if (isLast) return;
+
+                if (item._id === null) {
+                  navigate("/drive"); // My Drive root
+                } else {
+                  navigate(`/folders/${item._id}`);
+                }
               };
+
 
               return (
                 <React.Fragment key={item._id ?? "root"}>

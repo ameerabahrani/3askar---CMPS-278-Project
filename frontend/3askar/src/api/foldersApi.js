@@ -155,5 +155,22 @@ export async function searchFolders(query) {
   );
 
   return handleResponse(res);
+
 }
+
+export async function copyFolder(folderId, { name, parentFolder } = {}) {
+  const body = {};
+  if (typeof name === "string") body.name = name;
+  if (typeof parentFolder !== "undefined") body.parentFolder = parentFolder;
+
+  const res = await fetch(`${API_BASE_URL}/folders/${folderId}/copy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+
+  return handleResponse(res);
+}
+
  

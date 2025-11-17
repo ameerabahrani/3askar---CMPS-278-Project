@@ -441,4 +441,101 @@ router.get("/:id/breadcrumb", ensureAuth, async (req, res) => {
   }
 });
 
+// Deep copy a folder and all its subfolders
+router.post("/:id/copy", ensureAuth, async (req, res) => {
+  try {
+    const folderId = req.params.id;
+    const userId = req.user._id;
+    const { parentFolder, name } = req.body || {};
+
+    const original = await Folder.findById(folderId);
+    if (!original) {
+      return res.status(404).json({ message: "Folder not found" });
+    }
+
+    // Must at least be able to read the folder to copy it
+    if (!canReadFolder(original, userId)) {
+      return res
+        .status(403)
+        .json({ message: "You do not have permission to copy this folder" });
+    }
+
+    // Decide where to paste the copy:
+    // - If parentFolder is provided in body → use that (or null for root)
+    // - Else → use original.parentFolder (copy next to original)
+    const targetParent =
+      typeof parentFolder !== "undefined"
+        ? parentFolder || null
+        : original.parentFolder || null;
+
+    // Name of the root copied folder
+    const rootCopyName =
+      name && name.trim() ? name.trim() : `${original.name} (copy)`;
+
+    // Helper: recursively copy a folder and its subfolders
+    async function copyFolderTree(sourceFolder, newParentId, options = {}) {
+      const {
+        isRoot = false,
+        overrideName = null,
+      } = options;
+
+      // Decide the name for this particular copied folder
+      const folderName = isRoot
+        ? overrideName || `${sourceFolder.name} (copy)`
+        : sourceFolder.name;
+
+      // Build path for the copied folder (using the new parent)
+      const path = await buildPath(folderName, newParentId);
+
+      const copiedFolder = new Folder({
+        name: folderName,
+        owner: userId,                      // copy belongs to current user
+        parentFolder: newParentId,
+        isDeleted: false,
+        location: "MY_DRIVE",
+        isStarred: false,                   // usually copies are not starred
+        description: sourceFolder.description,
+        path,
+        sharedWith: [],                     // copies start as private
+      });
+
+      await copiedFolder.save();
+
+      // TODO: when you have a File model:
+      // - find all files with parentFolder = sourceFolder._id
+      // - create new files pointing to copiedFolder._id
+      // For now we only copy the folder hierarchy.
+
+      // Find direct child folders of this source folder
+      const children = await Folder.find({
+        parentFolder: sourceFolder._id,
+        isDeleted: false, // usually don't copy trashed children
+      });
+
+      // Recursively copy each child under the new copied folder
+      for (const child of children) {
+        await copyFolderTree(child, copiedFolder._id, {
+          isRoot: false,
+        });
+      }
+
+      return copiedFolder;
+    }
+
+    // Start the deep copy from the original folder as the "root"
+    const rootCopy = await copyFolderTree(original, targetParent, {
+      isRoot: true,
+      overrideName: rootCopyName,
+    });
+
+    // Return the root copied folder (front-end can reload its view after)
+    res.status(201).json(rootCopy);
+  } catch (error) {
+    console.error("Error copying folder tree:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+
 module.exports = router;

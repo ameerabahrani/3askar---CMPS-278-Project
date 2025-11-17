@@ -21,14 +21,14 @@ function Navbar(){
         <Box sx={{display: "flex", alignItems: "center", gap: 1.5, ml: 1}}>
 
           <img
-            src="https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_48dp.png"
+            src="/src/assets/3askarDriveLogo.png"
             alt="Drive Logo"
-            style={{ width: 40, height: 40 }}
+            style={{ width: 55, height: 55 }}
           />
 
             <Typography
               variant="h6"
-              sx={{ fontSize: 20, fontWeight: 525, color: "#202124", letterSpacing: 0.2 }}>
+              sx={{ fontSize: 25, fontWeight: 525, color: "#202124", letterSpacing: 0.2 }}>
               Drive
             </Typography>
         </Box>

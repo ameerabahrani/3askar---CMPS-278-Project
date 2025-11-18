@@ -21,8 +21,6 @@ app.use(
   })
 );
 
-// Parse JSON body
-app.use(express.json()); 
 
 // Sessions
 app.use(

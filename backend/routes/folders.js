@@ -1,6 +1,9 @@
 const express = require('express');
 const Folder = require('../models/Folder');
 const ensureAuth = require('../middleware/auth');
+const mongoose = require("mongoose");
+const { v4: uuidv4 } = require("uuid");  // for generating publicId when missing
+
 
 const router = express.Router();
 
@@ -36,21 +39,52 @@ function canWriteFolder(folder, userId) {
 }
 
 // Build a path string like "/Parent/Child"
-    async function buildPath(name, parentId) {
-      if (!parentId) {
-        // root
-        return `/${name}`;
-      }
+async function buildPath(name, parentId) {
+  if (!parentId) {
+    // root
+    return `/${name}`;
+  }
 
-      const parent = await Folder.findById(parentId);
+  const parent = await Folder.findById(parentId);
 
-      if (!parent) {
-        throw new Error("Parent folder not found");
-      }
+  if (!parent) {
+    throw new Error("Parent folder not found");
+  }
 
-      const parentPath = parent.path || `/${parent.name}`;
-      return `${parentPath}/${name}`;
-    }
+  const parentPath = parent.path || `/${parent.name}`;
+  return `${parentPath}/${name}`;
+}
+
+// helper accept either publicId or mongo id
+async function findFolderByAnyId(id) {
+  if (!id) return null;
+
+  // Try publicId first
+  let folder = await Folder.findOne({ publicId: id });
+  if (folder) {
+    return ensurePublicId(folder);   // make sure publicId exists & saved
+  }
+
+  // Fallback: if it looks like an ObjectId, try _id
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    folder = await Folder.findById(id);
+    return ensurePublicId(folder);   // also backfill publicId for old docs
+  }
+
+  return null;
+}
+
+
+// make sure a folder has a publicId; if missing, generate and save once
+async function ensurePublicId(folder) {
+  if (!folder) return null;
+  if (!folder.publicId) {
+    folder.publicId = uuidv4();
+    await folder.save();
+  }
+  return folder;
+}
+
 
 
 // Simple test to see if folder routes are working
@@ -64,20 +98,18 @@ router.get("/test", (req, res) => {
 router.post("/", ensureAuth, async (req, res) => {
   try {
     const { name, parentFolder } = req.body;
-    const userId = req.user._id;          // clearer name
-    const parentId = parentFolder || null; // so we use the same variable everywhere
+    const userId = req.user._id;
 
-
-    // validate
     if (!name || !name.trim()) {
       return res.status(400).json({ message: "Folder name is required" });
     }
 
     let parentDoc = null;
+    let parentId = null;
 
-    // If nested folder → check write permission on parent
-    if (parentId) {
-      parentDoc = await Folder.findById(parentId);
+    // If nested folder → parentFolder is a publicId (or id)
+    if (parentFolder) {
+      parentDoc = await findFolderByAnyId(parentFolder);
 
       if (!parentDoc) {
         return res.status(404).json({ message: "Parent folder not found" });
@@ -88,52 +120,52 @@ router.post("/", ensureAuth, async (req, res) => {
           .status(403)
           .json({ message: "You do not have permission to create in this folder" });
       }
+
+      parentId = parentDoc._id;
     }
 
     const path = await buildPath(name.trim(), parentId);
 
-      const folder = new Folder({
-        name: name.trim(),
-        owner: userId,
-        parentFolder: parentId,
-        path,
-      });
+    const folder = new Folder({
+      name: name.trim(),
+      owner: userId,
+      parentFolder: parentId,
+      path,
+    });
 
-    //return created folder to frontend
     await folder.save();
     res.status(201).json(folder);
   } catch (error) {
     console.error("Error creating folder:", error);
     res.status(500).json({ message: "Server error" });
   }
-
-
 });
+
 
 router.get("/", ensureAuth, async (req, res) => {
   try {
     const { parentFolder } = req.query;
     const userId = req.user._id;
 
-    const parentId =
+    const rawParent =
       parentFolder && parentFolder !== "null" ? parentFolder : null;
 
     // ROOT VIEW (My Drive)
-    if (!parentId) {
+    if (!rawParent) {
       const folders = await Folder.find({
         parentFolder: null,
         isDeleted: false,
-        $or: [
-          { owner: userId },
-          { "sharedWith.user": userId }
-        ]
+        $or: [{ owner: userId }, { "sharedWith.user": userId }],
       }).sort({ name: 1 });
+
+      // ensure all children have publicId before sending back
+      
 
       return res.json(folders);
     }
 
-    // NON-ROOT VIEW — check permission for parent folder
-    const parent = await Folder.findById(parentId);
+    // NON-ROOT VIEW — parentFolder is publicId (or id)
+    const parent = await findFolderByAnyId(rawParent);
 
     if (!parent) {
       return res.status(404).json({ message: "Parent folder not found" });
@@ -145,22 +177,21 @@ router.get("/", ensureAuth, async (req, res) => {
         .json({ message: "You do not have permission to view this folder" });
     }
 
-    // List children the user can see (owned or shared)
     const children = await Folder.find({
-      parentFolder: parentId,
+      parentFolder: parent._id,
       isDeleted: false,
-      $or: [
-        { owner: userId },
-        { "sharedWith.user": userId }
-      ]
+      $or: [{ owner: userId }, { "sharedWith.user": userId }],
     }).sort({ name: 1 });
 
+    // ⬇️ if you added something with children before this line, REMOVE it.
     res.json(children);
+
   } catch (error) {
     console.error("Error fetching folders:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 
 // Update a folder (rename, move, trash, etc.)
@@ -178,7 +209,7 @@ router.patch("/:id", ensureAuth, async (req, res) => {
       location           // update location (MY_DRIVE/TRASH/SHARED)
     } = req.body;
     
-    const folder = await Folder.findById(folderId); //fetch from db
+    const folder = await findFolderByAnyId(folderId); //fetch from db
     if (!folder) {
       return res.status(404).json({ message: "Folder not found" });
     }
@@ -196,8 +227,29 @@ router.patch("/:id", ensureAuth, async (req, res) => {
 
     // Move folder (change parentFolder)
     if (typeof parentFolder !== "undefined") {
-      folder.parentFolder = parentFolder || null;  // null = root
+      if (parentFolder) {
+        // parentFolder now comes as publicId (or Mongo _id) → resolve to actual ObjectId
+        const newParent = await findFolderByAnyId(parentFolder);
+
+        if (!newParent) { // ⬅️ added
+          return res.status(404).json({ message: "New parent folder not found" });
+        }
+
+        // Only allow moving into folders the user can write to 
+        if (!canWriteFolder(newParent, userId)) {
+          return res
+            .status(403)
+            .json({ message: "You do not have permission to move to this folder" });
+        }
+
+        // Store the REAL parent ObjectId in DB, never the publicId
+        folder.parentFolder = newParent._id;
+      } else {
+        // Empty string / null → move to root ("My Drive")
+        folder.parentFolder = null;  // null = root
+      }
     }
+
 
     // Trash / restore
     if (typeof isDeleted === "boolean") {
@@ -356,7 +408,7 @@ router.get("/search", ensureAuth, async (req, res) => {
 // Get a single folder by ID (for info panel, renaming dialogs, checking permissions on single folder ) hala2 its not needed but later it will be so I did it now
 router.get("/:id", ensureAuth, async (req, res) => {
   try {
-    const folder = await Folder.findById(req.params.id);
+    const folder = await findFolderByAnyId(req.params.id);
 
     if (!folder) {
       return res.status(404).json({ message: "Folder not found" });
@@ -385,7 +437,7 @@ router.get("/:id/breadcrumb", ensureAuth, async (req, res) => {
     const userId = req.user._id;      // set by ensureAuth
 
         //oad the current folder
-    let folder = await Folder.findById(folderId);
+    let folder = await findFolderByAnyId(folderId);
 
     if (!folder) {
       return res.status(404).json({ message: "Folder not found" });
@@ -407,6 +459,7 @@ router.get("/:id/breadcrumb", ensureAuth, async (req, res) => {
       // push current folder into chain
       chain.push({
         _id: current._id,
+        publicId: current.publicId,
         name: current.name,
       });
 
@@ -448,7 +501,7 @@ router.post("/:id/copy", ensureAuth, async (req, res) => {
     const userId = req.user._id;
     const { parentFolder, name } = req.body || {};
 
-    const original = await Folder.findById(folderId);
+    const original = await findFolderByAnyId(folderId);
     if (!original) {
       return res.status(404).json({ message: "Folder not found" });
     }
@@ -461,12 +514,27 @@ router.post("/:id/copy", ensureAuth, async (req, res) => {
     }
 
     // Decide where to paste the copy:
-    // - If parentFolder is provided in body → use that (or null for root)
+    // - If parentFolder is provided in body → resolve it (publicId or _id) and use its ObjectId
     // - Else → use original.parentFolder (copy next to original)
-    const targetParent =
-      typeof parentFolder !== "undefined"
-        ? parentFolder || null
-        : original.parentFolder || null;
+    let targetParent = null; // will always be an ObjectId or null  // ⬅️ edited
+
+    if (typeof parentFolder !== "undefined") {
+      if (parentFolder) {
+        // parentFolder comes from frontend as publicId (or _id)  // ⬅️ added
+        const targetParentDoc = await findFolderByAnyId(parentFolder); // ⬅️ edited
+        if (!targetParentDoc) { // ⬅️ added
+          return res.status(404).json({ message: "Target parent folder not found" });
+        }
+        targetParent = targetParentDoc._id; // store actual ObjectId in DB  // ⬅️ edited
+      } else {
+        // Explicitly copy to root  // ⬅️ added
+        targetParent = null;
+      }
+    } else {
+      // No parentFolder passed → copy next to original (same parent as original)  // ⬅️ clarified
+      targetParent = original.parentFolder || null; // ObjectId or null
+    }
+
 
     // Name of the root copied folder
     const rootCopyName =

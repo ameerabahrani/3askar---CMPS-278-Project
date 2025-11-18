@@ -24,6 +24,7 @@ function App() {
               <Route path="/starred" element={<Starred />} />
               <Route path="/shared" element={<Shared />} />
               <Route path="/bin" element={<Bin />} />
+              <Route path="/folders/:folderId" element={<Homepage />} />
             </Routes>
           </div>
         </div>

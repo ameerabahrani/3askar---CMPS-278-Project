@@ -10,7 +10,7 @@ import CloudOffIcon from "@mui/icons-material/CloudOff";
 import DeleteIcon from "@mui/icons-material/Delete";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
 
-function FileKebabMenu({ anchorEl, anchorPosition, open, onClose, onRename, onTrash, onToggleStar, isStarred, isInTrash }) {
+function FileKebabMenu({ anchorEl, anchorPosition, open, onClose, onRename, onTrash, onToggleStar, onCopy, isStarred, isInTrash }) {
   const anchorReference = anchorPosition ? "anchorPosition" : "anchorEl";
 
   // Shared styling for all menu items
@@ -62,7 +62,16 @@ function FileKebabMenu({ anchorEl, anchorPosition, open, onClose, onRename, onTr
     </MenuItem>
 
     {/* Make a copy */}
-    <MenuItem onClick={onClose} sx={menuItemStyle}>
+    <MenuItem
+      onClick={() => {
+        if (onCopy) {
+          onCopy();
+        } else {
+          onClose?.();
+        }
+      }}
+      sx={menuItemStyle}
+    >
       <FileCopyIcon fontSize="small" sx={iconStyle} />
       Make a copy
     </MenuItem>

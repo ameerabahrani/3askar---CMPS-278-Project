@@ -249,7 +249,7 @@ const [currentFolderId, setCurrentFolderId] = React.useState(folderId || null);
       setFoldersLoading(true);
       setFoldersError(null);
 
-      await updateFolder(selectedFolder._id, {
+      await updateFolder(selectedFolder.publicId || selectedFolder._id, {
         name: newName.trim(),
       });
 
@@ -281,7 +281,7 @@ const [currentFolderId, setCurrentFolderId] = React.useState(folderId || null);
         setFoldersLoading(true);
         setFoldersError(null);
 
-        await updateFolder(selectedFolder._id, {
+        await updateFolder(selectedFolder.publicId || selectedFolder._id, {
           isDeleted: false,
         });
 
@@ -304,7 +304,7 @@ const [currentFolderId, setCurrentFolderId] = React.useState(folderId || null);
         setFoldersLoading(true);
         setFoldersError(null);
 
-        await updateFolder(selectedFolder._id, {
+        await updateFolder(selectedFolder.publicId || selectedFolder._id, {
           isDeleted: true,
         });
 
@@ -330,7 +330,7 @@ const [currentFolderId, setCurrentFolderId] = React.useState(folderId || null);
       setFoldersLoading(true);
       setFoldersError(null);
 
-      await updateFolder(selectedFolder._id, {
+      await updateFolder(selectedFolder.publicId || selectedFolder._id, {
         isStarred: newStarValue,
       });
 
@@ -379,7 +379,7 @@ const handleCopyFolder = async () => {
     setFoldersLoading(true);
     setFoldersError(null);
 
-    await copyFolder(selectedFolder._id, {
+    await copyFolder(selectedFolder.publicId || selectedFolder._id, {
       name: finalName,
       parentFolder: currentView === "MY_DRIVE" ? currentFolderId : null,
     });
@@ -413,55 +413,7 @@ const handleCopyFolder = async () => {
         Welcome to Drive
       </Typography>
 
-      {/* View selector: My Drive / Starred / Trash */}
-      <Box sx={{ mt: 1, mb: 1.5, display: "flex", gap: 1 }}>
-        <Button
-          size="small"
-          variant={currentView === "MY_DRIVE" ? "contained" : "text"}
-          onClick={() => {
-            navigate("/drive")
-          }}
-        >
-          My Drive
-        </Button>
-        <Button
-          size="small"
-          variant={currentView === "STARRED" ? "contained" : "text"}
-          onClick={() => {
-            navigate("/starred")
-          }}
-        >
-          Starred
-        </Button>
-        <Button
-          size="small"
-          variant={currentView === "TRASH" ? "contained" : "text"}
-          onClick={() => {
-            navigate("/trash")
-          }}
-        >
-          Trash
-        </Button>
-        <Button
-          size="small"
-          variant={currentView === "SHARED" ? "contained" : "text"}
-          onClick={() => {
-            navigate("/shared")
-          }}
-        >
-          Shared with me
-        </Button>
-
-        <Button
-          size="small"
-          variant={currentView === "RECENT" ? "contained" : "text"}
-          onClick={() => {
-           navigate("/recent")
-          }}
-        >
-          Recent
-        </Button>
-      </Box>
+      
 
       {/* Breadcrumb + MenuBar go after this (as you already have) */}
 
@@ -504,7 +456,7 @@ const handleCopyFolder = async () => {
                 if (item._id === null) {
                   navigate("/drive"); // My Drive root
                 } else {
-                  navigate(`/folders/${item._id}`);
+                  navigate(`/folders/${item.publicId || item._id}`);
                 }
               };
 
@@ -626,10 +578,10 @@ const handleCopyFolder = async () => {
             {!foldersLoading &&
               !foldersError &&
               rootFolders.map((folder) => (       //loops through all folders and raws a card for each
-                <Grid item xs={12} sm={6} md={4} key={folder._id}>
+                <Grid item xs={12} sm={6} md={4} key={ folder.publicId || folder._id }>
                   <Paper
                     elevation={0}
-                    onClick={() => handleFolderOpen(folder._id)}  //this funct sets current folder ID then get folders is called in backend  and it returns children of that folder 
+                    onClick={() => handleFolderOpen(folder.publicId || folder._id)}  //this funct sets current folder ID then get folders is called in backend  and it returns children of that folder 
                     sx={{                                         //and lastly setRoot updates the list to show subfolders inside the one:   Full folder navigation
                       display: "flex",
                       alignItems: "center",
@@ -896,6 +848,7 @@ const handleCopyFolder = async () => {
         onRename={handleRenameFolder}
         onTrash={handleTrashFolder}
         onToggleStar={handleToggleStarFolder}
+        onCopy={handleCopyFolder}
         isStarred={selectedFolder?.isStarred}
         isInTrash={currentView === "TRASH" || selectedFolder?.isDeleted}
       />

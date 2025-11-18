@@ -1,8 +1,7 @@
-import React, {useState} from "react";
+import React, { useEffect, useState } from "react";
 import { Box, Paper, Typography, TextField, Link, Button, FormControl, InputLabel, Select, MenuItem, Alert, FormHelperText, Checkbox, FormControlLabel } from "@mui/material";
-const API_URL = import.meta.env.VITE_API_URL;
 import { useNavigate } from "react-router-dom";
-
+const API_URL = import.meta.env.VITE_API_URL;
 
 const isValueEmpty = (value) => {
   if (typeof value === "string") {
@@ -41,7 +40,18 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [rememberMe, setRememberMe] = useState(false);
 
-
+  const [mode, setMode] = useState("login"); //login or create pages
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [dobMonth, setDobMonth] = useState("");
+  const [dobDay,   setDobDay]   = useState("");
+  const [dobYear,  setDobYear]  = useState("");
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const days   = Array.from({ length: 31 }, (_, i) => String(i + 1));
+  const years  = Array.from({ length: 120 }, (_, i) => String(new Date().getFullYear() - i));
+  Object.freeze(months);
+  Object.freeze(days);
+  Object.freeze(years);
 
   //login button handles logging in the user
   const handleLogin = async ()=> {
@@ -163,21 +173,6 @@ export default function LoginPage() {
       console.log(message);
     }
   }
-
-  const [mode, setMode] = useState("login"); //login or create pages
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [dobMonth, setDobMonth] = useState("");
-  const [dobDay,   setDobDay]   = useState("");
-  const [dobYear,  setDobYear]  = useState("");
-  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const days   = Array.from({ length: 31 }, (_, i) => String(i + 1));
-  const years  = Array.from({ length: 120 }, (_, i) => String(new Date().getFullYear() - i));
-  Object.freeze(months);
-  Object.freeze(days);
-  Object.freeze(years);
-  //const [gender, setGender] = useState("");
-
 
   const fieldSx={
           mt: 2,

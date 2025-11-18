@@ -8,9 +8,9 @@ const DEFAULT_FILE_ICON =
   "https://www.gstatic.com/images/icons/material/system/2x/insert_drive_file_black_24dp.png";
 
 const formatDate = (value) => {
-  if (!value) return "—";
+  if (!value) return "";
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "—";
+  if (Number.isNaN(parsed.getTime())) return "";
   return parsed.toLocaleDateString();
 };
 
@@ -18,7 +18,7 @@ const getSortValue = (file, field) => {
   switch (field) {
     case "name":
       return file.name || "";
-    case "sharedBy":
+    case "owner":
       return file.owner || "";
     case "date":
       return file.lastAccessedAt || file.uploadedAt || "";
@@ -28,22 +28,19 @@ const getSortValue = (file, field) => {
 };
 
 function Shared() {
-  const { files, loading } = useFiles();
+  const { sharedFiles, loading, error } = useFiles();
   const [sortField, setSortField] = React.useState("name");
   const [sortDirection, setSortDirection] = React.useState("asc");
   const [menuEl, setMenuEl] = React.useState(null);
   const [activeFile, setActiveFile] = React.useState(null);
 
-  const sharedFiles = React.useMemo(
-    () =>
-      files.filter(
-        (file) => !file.isDeleted && (file.sharedWith?.length ?? 0) > 0
-      ),
-    [files]
+  const sharedData = React.useMemo(
+    () => [...(sharedFiles || [])],
+    [sharedFiles]
   );
 
   const sortedFiles = React.useMemo(() => {
-    const data = [...sharedFiles];
+    const data = [...sharedData];
     data.sort((a, b) => {
       const valueA = getSortValue(a, sortField);
       const valueB = getSortValue(b, sortField);
@@ -87,11 +84,19 @@ function Shared() {
 
   const renderSortIndicator = (field) => {
     if (sortField !== field) return "";
-    return sortDirection === "asc" ? " ▲" : " ▼";
+    return sortDirection === "asc" ? " ↑" : " ↓";
   };
 
   if (loading) {
     return <Typography sx={{ p: 2 }}>Loading shared files...</Typography>;
+  }
+
+  if (error) {
+    return (
+      <Typography sx={{ p: 2, color: "#d93025" }}>
+        {error}
+      </Typography>
+    );
   }
 
   return (
@@ -130,8 +135,8 @@ function Shared() {
           Name{renderSortIndicator("name")}
         </Box>
 
-        <Box sx={{ flex: 3 }} onClick={() => handleSort("sharedBy")}>
-          Shared by{renderSortIndicator("sharedBy")}
+        <Box sx={{ flex: 3 }} onClick={() => handleSort("owner")}>
+          Shared by{renderSortIndicator("owner")}
         </Box>
 
         <Box sx={{ flex: 2 }} onClick={() => handleSort("date")}>

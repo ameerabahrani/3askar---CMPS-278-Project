@@ -30,15 +30,15 @@ const getSortValue = (file, field) => {
 };
 
 function Bin() {
-  const { files, loading, restoreFromBin, deleteForever } = useFiles();
+  const { trashFiles, loading, error, restoreFromBin, deleteForever } = useFiles();
   const [sortField, setSortField] = React.useState("name");
   const [sortDirection, setSortDirection] = React.useState("asc");
   const [menuEl, setMenuEl] = React.useState(null);
   const [activeFile, setActiveFile] = React.useState(null);
 
   const deletedFiles = React.useMemo(
-    () => files.filter((file) => file.isDeleted),
-    [files]
+    () => [...(trashFiles || [])],
+    [trashFiles]
   );
 
   const sortedFiles = React.useMemo(() => {
@@ -100,11 +100,19 @@ function Bin() {
 
   const renderSortIndicator = (field) => {
     if (sortField !== field) return "";
-    return sortDirection === "asc" ? " ▲" : " ▼";
+    return sortDirection === "asc" ? " ↑" : " ↓";
   };
 
   if (loading) {
     return <Typography sx={{ p: 2 }}>Loading trash...</Typography>;
+  }
+
+  if (error) {
+    return (
+      <Typography sx={{ p: 2, color: "#d93025" }}>
+        {error}
+      </Typography>
+    );
   }
 
   return (

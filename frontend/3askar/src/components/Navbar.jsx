@@ -7,8 +7,9 @@ import Avatar from "@mui/material/Avatar";
 import Tooltip from "@mui/material/Tooltip";
 import SearchBar from "./SearchBar";
 
-
 function Navbar(){
+ 
+
   return (
 
     <AppBar position = "fixed"
@@ -53,11 +54,14 @@ function Navbar(){
           <IconButton sx={{color: "#5f6368", "&:hover": { color: "#202124" }}}>
               <AppsIcon/>
           </IconButton>
+          <IconButton sx={{ p: 0.25, ml: 1 }}>
             <Avatar
               alt="User"
               src="https://www.gstatic.com/images/branding/product/1x/avatar_circle_blue_512dp.png"
-              sx={{ width: 32, height: 32, ml: 1 }}
+              sx={{ width: 32, height: 32 }}
             />
+          </IconButton>
+
         </Box>
       </Toolbar>
     </AppBar>

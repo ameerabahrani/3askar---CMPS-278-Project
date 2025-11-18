@@ -6,8 +6,8 @@ import { FileProvider } from './context/fileContext.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <FileProvider>
-      <App />
-    </FileProvider>
+      <FileProvider>
+        <App />
+      </FileProvider>
   </StrictMode>,
 )

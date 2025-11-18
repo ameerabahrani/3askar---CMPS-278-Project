@@ -12,11 +12,19 @@ import { useFiles } from "../context/fileContext.jsx";
 import FileKebabMenu from "./FileKebabMenu"; // <-- ONLY NEW IMPORT ADDED
 
 function Homepage() {
-  const{ files, loading } = useFiles();
+  const{ files, loading, error } = useFiles();
 
   if (loading) {
     return (
       <Typography sx={{ p: 2 }}>Loading recent files...</Typography>
+    );
+  }
+
+  if (error) {
+    return (
+      <Typography sx={{ p: 2, color: "#d93025" }}>
+        {error}
+      </Typography>
     );
   }
 
@@ -29,7 +37,7 @@ function Homepage() {
 
   const [menuAnchorEl, setMenuAnchorEl] = React.useState(null);
   const [menuPosition, setMenuPosition] = React.useState(null);
-  const [selectedItem, setSelectedItem] = React.useState(null);
+  const [selectedFile, setSelectedFile] = React.useState(null);
 
   const menuOpen = Boolean(menuAnchorEl) || Boolean(menuPosition);
 
@@ -39,7 +47,7 @@ function Homepage() {
 
   const handleMenuButtonClick = (event, item) => {
     event.stopPropagation?.();
-    setSelectedItem(item);
+    setSelectedFile(item);
     setMenuPosition(null);
     setMenuAnchorEl(event.currentTarget);
   };
@@ -47,7 +55,7 @@ function Homepage() {
   const handleContextMenu = (event, item) => {
     event.preventDefault();
     event.stopPropagation?.();
-    setSelectedItem(item);
+    setSelectedFile(item);
     setMenuAnchorEl(null);
     setMenuPosition({
       mouseX: event.clientX + 2,
@@ -58,7 +66,7 @@ function Homepage() {
   const handleMenuClose = () => {
     setMenuAnchorEl(null);
     setMenuPosition(null);
-    setSelectedItem(null);
+    setSelectedFile(null);
   };
 
   // TODO - upate to read from database/endpoint/service
@@ -394,7 +402,7 @@ function Homepage() {
         anchorPosition={anchorPosition}
         open={menuOpen}
         onClose={handleMenuClose}
-        selectedItem={selectedItem}
+        selectedFile={selectedFile}
       />
     </Box>
   );

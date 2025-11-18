@@ -19,7 +19,7 @@ const formatDate = (value) => {
 };
 
 function MyDrive() {
-  const { files, loading, toggleStar } = useFiles();
+  const { files, loading, error, toggleStar } = useFiles();
   const [viewMode, setViewMode] = React.useState("list");
 
   const driveFiles = React.useMemo(
@@ -33,6 +33,14 @@ function MyDrive() {
 
   if (loading) {
     return <Typography sx={{ p: 2 }}>Loading files...</Typography>;
+  }
+
+  if (error) {
+    return (
+      <Typography sx={{ p: 2, color: "#d93025" }}>
+        {error}
+      </Typography>
+    );
   }
 
   return (

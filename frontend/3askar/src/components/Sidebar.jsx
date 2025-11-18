@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useFiles } from "../context/fileContext.jsx";
 
 import {
     Box, 
@@ -45,8 +46,20 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const [width, setWidth] = useState(240);
   const [isResizing, setIsResizing] = useState(false);
+  const [active, setActive] = useState("home"); // if any element in sidebar is selected 
+  const { uploadFiles, uploading } = useFiles();
   const MIN_WIDTH = 200;
   const MAX_WIDTH = 280;
+  const user = {
+  storageLimit: 15 * 1024 * 1024 * 1024, // 10GB fake
+  storageUsed: 2 * 1024 * 1024 * 1024,  // 2GB fake
+};
+
+const [openDrive, setOpenDrive] = useState(false);
+const [openComputers, setOpenComputers] = useState(false);
+
+const connectedDevices = []; // no devices for now (placeholder)
+
 
     // Sidebar Resizing line
     const handleMouseDown = useCallback((e) => {
@@ -77,11 +90,20 @@ const Sidebar = () => {
       };
     }, [isResizing, MIN_WIDTH, MAX_WIDTH]);
 
-    const [active, setActive] = useState("home"); // if any element in sidebar is selected 
-    const [usedStorage, setUsedStorage] = useState(60); //TODO: update to calculate storage capacity dynamically  
-    const [openDrive, setOpenDrive] = useState(false);
-    const [openComputers, setOpenComputers] = useState(false);
-    const [connectedDevices] = useState([]); //empty = no devices connected
+  
+    const storageLimit = user?.storageLimit || 0;
+    const storageUsed = user?.storageUsed || 0;
+    const usedStorage =
+      storageLimit > 0
+        ? Math.min(
+            100,
+            Number(((storageUsed / storageLimit) * 100).toFixed(1))
+          )
+        : 0;
+    const storageSummary =
+      storageLimit > 0
+        ? `${(storageUsed / (1024 ** 3)).toFixed(2)} GB of ${(storageLimit / (1024 ** 3)).toFixed(0)} GB used`
+        : "Storage info unavailable";
 
     // New button menu state and refs for uploads
     const [newMenuEl, setNewMenuEl] = useState(null);
@@ -99,10 +121,16 @@ const Sidebar = () => {
     const triggerFileUpload = () => fileInputRef.current?.click();
     const triggerFolderUpload = () => folderInputRef.current?.click();
 
-    const handleFilesSelected = (e) => {
+    const handleFilesSelected = async (e) => {
       const files = Array.from(e.target.files || []);
-      console.log("Files selected:", files);
-      e.target.value = ""; // reset so same file selection retriggers
+      if (!files.length) return;
+      try {
+        await uploadFiles(files);
+      } catch (err) {
+        console.error("Upload failed:", err);
+      } finally {
+        e.target.value = ""; // reset so same file selection retriggers
+      }
     };
 
     const handleFolderSelected = (e) => {
@@ -189,13 +217,13 @@ const Sidebar = () => {
                 </ListItemIcon>
                 <ListItemText primary="New folder" />
               </MenuItem>
-              <MenuItem onClick={() => { handleCloseNewMenu(); triggerFileUpload(); }}>
+              <MenuItem disabled={uploading} onClick={() => { handleCloseNewMenu(); triggerFileUpload(); }}>
                 <ListItemIcon>
                   <UploadFileOutlinedIcon fontSize="small" />
                 </ListItemIcon>
                 <ListItemText primary="Upload file" />
               </MenuItem>
-              <MenuItem onClick={() => { handleCloseNewMenu(); triggerFolderUpload(); }}>
+              <MenuItem disabled={uploading} onClick={() => { handleCloseNewMenu(); triggerFolderUpload(); }}>
                 <ListItemIcon>
                   <DriveFolderUploadOutlinedIcon fontSize="small" />
                 </ListItemIcon>
@@ -204,6 +232,15 @@ const Sidebar = () => {
             </Menu>
             <input type="file" hidden multiple ref={fileInputRef} onChange={handleFilesSelected} /> 
             <input type="file" hidden ref={folderInputRef} onChange={handleFolderSelected} />
+
+            {uploading && (
+              <Typography
+                variant="caption"
+                sx={{ color: "#1a73e8", ml: 1, mb: 1.5, display: "inline-block" }}
+              >
+                Uploading files...
+              </Typography>
+            )}
 
             <List>
                 {sideItems.map((item) => {
@@ -361,7 +398,7 @@ const Sidebar = () => {
         <Box sx={{ px: 0.8 }}>
           <Box sx={{ ml: 0.5, mr: 1, pl: 1.25 }}>
             <Typography variant="caption" color="text.secondary">
-              {usedStorage}% of 15 GB used
+              {storageSummary}
             </Typography>
           </Box>
         </Box>

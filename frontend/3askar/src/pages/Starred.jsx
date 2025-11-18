@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Typography, IconButton, Menu, MenuItem } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
-import MenuBar from "../components/MenuBar";
 import StarIcon from "@mui/icons-material/Star";
+import MenuBar from "../components/MenuBar";
 import { useFiles } from "../context/fileContext.jsx";
 
 const formatDate = (value) => {
@@ -13,15 +13,33 @@ const formatDate = (value) => {
 };
 
 function Starred() {
+  const { filteredFiles, filterBySource, loading, error } = useFiles();
+
   const [sortField, setSortField] = React.useState("name");
   const [sortDirection, setSortDirection] = React.useState("asc");
   const [menuEl, setMenuEl] = React.useState(null);
 
-  const { files, loading, error } = useFiles();
   const starredFiles = React.useMemo(
-    () => files.filter((file) => file.isStarred && !file.isDeleted),
-    [files]
+    () => filterBySource(filteredFiles, "starred"),
+    [filteredFiles, filterBySource]
   );
+
+  const sortedFiles = React.useMemo(() => {
+    return [...starredFiles].sort((a, b) => {
+      const valueA =
+        sortField === "date"
+          ? Number(new Date(a.lastAccessedAt || a.uploadedAt || a.date))
+          : (a[sortField] ?? "").toString().toLowerCase();
+
+      const valueB =
+        sortField === "date"
+          ? Number(new Date(b.lastAccessedAt || b.uploadedAt || b.date))
+          : (b[sortField] ?? "").toString().toLowerCase();
+
+      if (sortDirection === "asc") return valueA < valueB ? -1 : valueA > valueB ? 1 : 0;
+      return valueA < valueB ? 1 : valueA > valueB ? -1 : 0;
+    });
+  }, [starredFiles, sortField, sortDirection]);
 
   const handleOpenMenu = (event) => setMenuEl(event.currentTarget);
   const handleCloseMenu = () => setMenuEl(null);
@@ -34,33 +52,6 @@ function Starred() {
       setSortDirection("asc");
     }
   };
-
-  const sortedFiles = React.useMemo(() => {
-    return [...starredFiles].sort((a, b) => {
-      if (sortField === "date") {
-        const valueA = Number(
-          new Date(a.lastAccessedAt || a.uploadedAt || a.date)
-        );
-        const valueB = Number(
-          new Date(b.lastAccessedAt || b.uploadedAt || b.date)
-        );
-
-        if (sortDirection === "asc") {
-          return (Number.isNaN(valueA) ? 0 : valueA) -
-            (Number.isNaN(valueB) ? 0 : valueB);
-        }
-        return (Number.isNaN(valueB) ? 0 : valueB) -
-          (Number.isNaN(valueA) ? 0 : valueA);
-      }
-
-      const textA = (a[sortField] ?? "").toString().toLowerCase();
-      const textB = (b[sortField] ?? "").toString().toLowerCase();
-
-      if (textA < textB) return sortDirection === "asc" ? -1 : 1;
-      if (textA > textB) return sortDirection === "asc" ? 1 : -1;
-      return 0;
-    });
-  }, [starredFiles, sortField, sortDirection]);
 
   const renderSortIndicator = (field) => {
     if (sortField !== field) return "";
@@ -139,8 +130,7 @@ function Starred() {
           }}
         >
           <Box sx={{ flex: 4, display: "flex", alignItems: "center", gap: 1.5 }}>
-            {file.isStarred && <StarIcon sx={{ color: "#f7cb4d", fontSize: 20 }} />}
-
+            <StarIcon sx={{ color: "#f7cb4d", fontSize: 20 }} />
             <img src={file.icon} width={20} height={20} alt="file icon" />
             {file.name}
           </Box>
@@ -148,6 +138,7 @@ function Starred() {
           <Box sx={{ flex: 3, color: "#5f6368" }}>
             {file.owner || "Unknown"}
           </Box>
+
           <Box sx={{ flex: 2, color: "#5f6368" }}>
             {formatDate(file.lastAccessedAt || file.uploadedAt)}
           </Box>

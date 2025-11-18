@@ -28,19 +28,20 @@ const getSortValue = (file, field) => {
 };
 
 function Shared() {
-  const { sharedFiles, loading, error } = useFiles();
+  const { filteredFiles, loading, error, filterBySource } = useFiles();
+
   const [sortField, setSortField] = React.useState("name");
   const [sortDirection, setSortDirection] = React.useState("asc");
   const [menuEl, setMenuEl] = React.useState(null);
   const [activeFile, setActiveFile] = React.useState(null);
 
-  const sharedData = React.useMemo(
-    () => [...(sharedFiles || [])],
-    [sharedFiles]
+  const sharedFiles = React.useMemo(
+    () => filterBySource(filteredFiles, "shared"),
+    [filteredFiles, filterBySource]
   );
 
   const sortedFiles = React.useMemo(() => {
-    const data = [...sharedData];
+    const data = [...sharedFiles];
     data.sort((a, b) => {
       const valueA = getSortValue(a, sortField);
       const valueB = getSortValue(b, sortField);
@@ -173,7 +174,10 @@ function Shared() {
               {file.name}
             </Box>
 
-            <Box sx={{ flex: 3, color: "#5f6368" }}>{file.owner || "Unknown"}</Box>
+            <Box sx={{ flex: 3, color: "#5f6368" }}>
+              {file.owner || "Unknown"}
+            </Box>
+
             <Box sx={{ flex: 2, color: "#5f6368" }}>
               {formatDate(file.lastAccessedAt || file.uploadedAt)}
             </Box>

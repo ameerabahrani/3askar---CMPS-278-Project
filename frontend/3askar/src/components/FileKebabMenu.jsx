@@ -18,10 +18,12 @@ function FileKebabMenu({
   onClose,
   selectedFile,
   onStartRename,
-  onStartShare
+  onStartShare,
+  onViewDetails,
 }) {
   const { moveToTrash, toggleStar, renameFile, downloadFile, copyFile } =
     useFiles();
+
   const anchorReference = anchorPosition ? "anchorPosition" : "anchorEl";
 
   const menuItemStyle = {
@@ -29,13 +31,12 @@ function FileKebabMenu({
     alignItems: "center",
     gap: 1.5,
     fontSize: "0.95rem",
-    "&:hover": {
-      backgroundColor: "#f7f7f7",
-    },
+    "&:hover": { backgroundColor: "#f7f7f7" },
   };
 
   const iconStyle = { color: "rgba(0,0,0,0.6)" };
 
+  // --- Actions ---
   const handleDownload = () => {
     if (!selectedFile) return;
     downloadFile(selectedFile);
@@ -80,10 +81,14 @@ function FileKebabMenu({
   const starLabel = selectedFile?.isStarred
     ? "Remove from starred"
     : "Add to starred";
-  const StarIconComponent = selectedFile?.isStarred ? StarIcon : StarBorderIcon;
+
+  const StarIconComponent = selectedFile?.isStarred
+    ? StarIcon
+    : StarBorderIcon;
 
   return (
     <Menu
+      disableAutoFocusItem
       anchorEl={anchorEl}
       anchorReference={anchorReference}
       anchorPosition={anchorPosition}
@@ -93,7 +98,8 @@ function FileKebabMenu({
         sx: {
           minWidth: 220,
           borderRadius: 3,
-          boxShadow: 3,
+          border: "1px solid #e0e0e0",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
           py: 0.5,
           px: 0.5,
         },
@@ -117,7 +123,6 @@ function FileKebabMenu({
         Rename
       </MenuItem>
 
-      {/* Make a copy */}
       <MenuItem
         onClick={handleCopy}
         sx={menuItemStyle}
@@ -139,7 +144,15 @@ function FileKebabMenu({
         Organize
       </MenuItem>
 
-      <MenuItem onClick={onClose} sx={menuItemStyle}>
+      <MenuItem
+        onClick={() => {
+          if (onViewDetails && selectedFile) {
+            onViewDetails(selectedFile);
+          }
+          onClose();
+        }}
+        sx={menuItemStyle}
+      >
         <InfoIcon fontSize="small" sx={iconStyle} />
         File information
       </MenuItem>

@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useRef,
   useState,
+  useMemo,
 } from "react";
 import apiClient, { API_BASE_URL } from "../services/apiClient";
 
@@ -109,8 +110,10 @@ const MOCK_FILES = [
 
 const normalizeFile = (file) => {
   if (!file) return null;
+
   const ownerObject =
     typeof file.owner === "object" && file.owner !== null ? file.owner : null;
+
   return {
     id: file._id?.toString() ?? file.id,
     gridFsId: file.gridFsId,
@@ -159,6 +162,7 @@ export const FileProvider = ({ children }) => {
         ...file,
         icon: file.icon || resolveIcon(file.name),
       }));
+
       setFiles(normalized.filter((file) => !file.isDeleted));
       setTrashFiles(normalized.filter((file) => file.isDeleted));
       setSharedFiles(
@@ -168,6 +172,7 @@ export const FileProvider = ({ children }) => {
             (file.sharedWith?.length ?? 0) > 0
         )
       );
+
       setError(null);
       setLoading(false);
       return;
@@ -202,6 +207,7 @@ export const FileProvider = ({ children }) => {
   const toggleStar = useCallback(async (id) => {
     const existing = filesRef.current.find((file) => file.id === id);
     if (!existing) return;
+
     const nextState = !existing.isStarred;
 
     setFiles((prev) =>
@@ -220,9 +226,8 @@ export const FileProvider = ({ children }) => {
           file.id === id ? { ...file, isStarred: existing.isStarred } : file
         )
       );
-      setError(
-        err.response?.data?.message || "Unable to update star. Try again."
-      );
+
+      setError("Unable to update star. Try again.");
     }
   }, []);
 
@@ -237,10 +242,10 @@ export const FileProvider = ({ children }) => {
 
     try {
       await apiClient.patch(`/files/${id}/trash`, { isDeleted: true });
-    } catch (err) {
+    } catch {
       setFiles((prev) => [existing, ...prev]);
       setTrashFiles((prev) => prev.filter((file) => file.id !== id));
-      setError(err.response?.data?.message || "Unable to move file to bin.");
+      setError("Unable to move file to bin.");
     }
   }, []);
 
@@ -255,10 +260,10 @@ export const FileProvider = ({ children }) => {
 
     try {
       await apiClient.patch(`/files/${id}/trash`, { isDeleted: false });
-    } catch (err) {
+    } catch {
       setTrashFiles((prev) => [existing, ...prev]);
       setFiles((prev) => prev.filter((file) => file.id !== id));
-      setError(err.response?.data?.message || "Unable to restore file.");
+      setError("Unable to restore file.");
     }
   }, []);
 
@@ -272,76 +277,75 @@ export const FileProvider = ({ children }) => {
 
     try {
       await apiClient.delete(`/files/${id}/permanent`);
-    } catch (err) {
+    } catch {
       setTrashFiles((prev) => [existing, ...prev]);
-      setError(
-        err.response?.data?.message || "Unable to delete file permanently."
-      );
+      setError("Unable to delete file permanently.");
     }
   }, []);
 
-  const renameFile = useCallback(async (id, newName) => {
-    const trimmed = newName?.trim();
-    if (!trimmed) return;
+  const renameFile = useCallback(
+    async (id, newName) => {
+      const trimmed = newName?.trim();
+      if (!trimmed) return;
 
-    const allFiles = [
-      ...filesRef.current,
-      ...trashRef.current,
-      ...sharedFiles,
-    ];
-    const existing = allFiles.find((file) => file.id === id);
-    if (!existing) return;
+      const allFiles = [
+        ...filesRef.current,
+        ...trashRef.current,
+        ...sharedFiles,
+      ];
+      const existing = allFiles.find((file) => file.id === id);
+      if (!existing) return;
 
-    const applyRename = (collection, name) =>
-      collection.map((file) =>
-        file.id === id ? { ...file, name } : file
-      );
+      const applyRename = (collection, name) =>
+        collection.map((file) => (file.id === id ? { ...file, name } : file));
 
-    setFiles((prev) => applyRename(prev, trimmed));
-    setSharedFiles((prev) => applyRename(prev, trimmed));
-    setTrashFiles((prev) => applyRename(prev, trimmed));
+      setFiles((prev) => applyRename(prev, trimmed));
+      setSharedFiles((prev) => applyRename(prev, trimmed));
+      setTrashFiles((prev) => applyRename(prev, trimmed));
 
-    if (USE_MOCK_DATA) return;
+      if (USE_MOCK_DATA) return;
 
-    try {
-      await apiClient.patch(`/files/${id}/rename`, { newName: trimmed });
-    } catch (err) {
-      setFiles((prev) => applyRename(prev, existing.name));
-      setSharedFiles((prev) => applyRename(prev, existing.name));
-      setTrashFiles((prev) => applyRename(prev, existing.name));
-      setError(
-        err.response?.data?.message || "Unable to rename file at the moment."
-      );
-    }
-  }, [sharedFiles]);
-
-  const downloadFile = useCallback(
-    (file) => {
-      if (!file?.gridFsId) return;
-
-      const url = `${API_BASE_URL}/files/${file.gridFsId}/download`;
-      window.open(url, "_blank", "noopener,noreferrer");
+      try {
+        await apiClient.patch(`/files/${id}/rename`, { newName: trimmed });
+      } catch {
+        setFiles((prev) => applyRename(prev, existing.name));
+        setSharedFiles((prev) => applyRename(prev, existing.name));
+        setTrashFiles((prev) => applyRename(prev, existing.name));
+        setError("Unable to rename file.");
+      }
     },
-    []
+    [sharedFiles]
   );
 
-  // copyFile: figures out which file to duplicate, builds a copy name, either mocks the copy or sends the real copy request to backend based on the boolean, inserts the copy into the local file list
-  const copyFile = useCallback(async (target) => {
+  const downloadFile = useCallback((file) => {
+    if (!file?.id) return;
+
+    if (USE_MOCK_DATA) {
+      window.alert("Downloads are unavailable in mock mode.");
+      return;
+    }
+
+    const url = `${API_BASE_URL}/files/${file.id}/download`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }, []);
+
+  const copyFile = useCallback(
+    async (target) => {
       if (!target) return null;
 
-      const file = 
-        typeof target === "string" // string => treat it as an id and look for the file in regular files, trash files, shared files
+      const file =
+        typeof target === "string"
           ? filesRef.current.find((item) => item.id === target) ||
             trashRef.current.find((item) => item.id === target) ||
             sharedFiles.find((item) => item.id === target)
-          : target; // !string => treat it as a file object 
+          : target;
 
-      if (!file?.id) return null;  //no file with id is found 
+      if (!file?.id) return null;
 
       const timestamp = new Date().toISOString();
       const defaultName = `Copy of ${file.name || "Untitled"}`;
 
-      if (USE_MOCK_DATA) { // when mockdata = false, doesnt apply, backend request happens
+      if (USE_MOCK_DATA) {
         const mockCopy = {
           ...file,
           id: `mock-copy-${Date.now()}-${file.id}`,
@@ -351,6 +355,7 @@ export const FileProvider = ({ children }) => {
           uploadedAt: timestamp,
           lastAccessedAt: timestamp,
         };
+
         setFiles((prev) => [mockCopy, ...prev]);
         return mockCopy;
       }
@@ -359,95 +364,282 @@ export const FileProvider = ({ children }) => {
         const { data } = await apiClient.post(`/files/${file.id}/copy`, {
           newName: defaultName,
         });
-        const normalized = normalizeFile(data.file); //turn it into the format frontend expects
-        if (normalized) { 
-          setFiles((prev) => [normalized, ...prev]); //insert file at the top of the list
+
+        const normalized = normalizeFile(data.file);
+        if (normalized) {
+          setFiles((prev) => [normalized, ...prev]);
           return normalized;
         }
-        await fetchCollections(); //if normalization failed reload everything
+
+        await fetchCollections();
         return null;
       } catch (err) {
-        setError(
-          err.response?.data?.message ||
-            err.message ||
-            "Unable to copy file at the moment."
-        );
+        setError("Unable to copy file.");
         throw err;
       }
     },
     [fetchCollections, sharedFiles]
   );
 
-  const uploadFiles = useCallback(async (selectedFiles, options = {}) => {
-    if (!selectedFiles?.length) return [];
-    setUploading(true);
-    const uploaded = [];
+  const uploadFiles = useCallback(
+    async (selectedFiles, options = {}) => {
+      if (!selectedFiles?.length) return [];
+      setUploading(true);
 
-    try {
-      for (const file of selectedFiles) {
-        if (USE_MOCK_DATA) {
-          const mockFile = {
-            id: `mock-upload-${Date.now()}-${file.name}`,
-            name: file.name,
-            owner: "me",
+      const uploaded = [];
+
+      try {
+        for (const file of selectedFiles) {
+          if (USE_MOCK_DATA) {
+            const mockFile = {
+              id: `mock-upload-${Date.now()}-${file.name}`,
+              name: file.name,
+              owner: "me",
+              location: options.location || "My Drive",
+              uploadedAt: new Date().toISOString(),
+              lastAccessedAt: new Date().toISOString(),
+              isStarred: false,
+              isDeleted: false,
+              icon: resolveIcon(file.name, file.type),
+            };
+
+            uploaded.push(mockFile);
+            setFiles((prev) => [mockFile, ...prev]);
+            continue;
+          }
+
+          const formData = new FormData();
+          formData.append("file", file);
+
+          const { data: uploadData } = await apiClient.post(
+            "/files/upload",
+            formData
+          );
+
+          const metadataPayload = {
+            gridFsId: uploadData.fileId,
+            originalName: file.name,
+            filename: uploadData.filename || file.name,
+            size: uploadData.length ?? file.size,
+            type: uploadData.contentType || file.type,
+            folderId: options.folderId || null,
             location: options.location || "My Drive",
-            uploadedAt: new Date().toISOString(),
-            lastAccessedAt: new Date().toISOString(),
-            isStarred: false,
-            isDeleted: false,
-            icon: resolveIcon(file.name, file.type),
+            path: options.path || [],
+            description: options.description || "",
           };
-          uploaded.push(mockFile);
-          setFiles((prev) => [mockFile, ...prev]);
-          continue;
+
+          const { data: metadata } = await apiClient.post(
+            "/files/saveMetadata",
+            metadataPayload
+          );
+
+          const normalized = normalizeFile(metadata.file);
+          if (normalized) {
+            uploaded.push(normalized);
+            setFiles((prev) => [normalized, ...prev]);
+          } else {
+            await fetchCollections();
+          }
         }
-
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const { data: uploadData } = await apiClient.post(
-          "/files/upload",
-          formData
-        );
-
-        const metadataPayload = {
-          gridFsId: uploadData.fileId,
-          originalName: file.name,
-          filename: uploadData.filename || file.name,
-          size: uploadData.length ?? file.size,
-          type: uploadData.contentType || file.type || "application/octet-stream",
-          folderId: options.folderId || null,
-          location: options.location || "My Drive",
-          path: options.path || [],
-          description: options.description || "",
-        };
-
-        const { data: metadata } = await apiClient.post(
-          "/files/saveMetadata",
-          metadataPayload
-        );
-
-        const normalized = normalizeFile(metadata.file);
-        if (normalized) {
-          uploaded.push(normalized);
-          setFiles((prev) => [normalized, ...prev]);
-        } else {
-          await fetchCollections();
-        }
+      } catch {
+        setError("Upload failed.");
+        throw err;
+      } finally {
+        setUploading(false);
       }
-    } catch (err) {
-      setError(err.response?.data?.message || "Upload failed. Please retry.");
-      throw err;
-    } finally {
-      setUploading(false);
-    }
 
-    return uploaded;
-  }, [fetchCollections]);
+      return uploaded;
+    },
+    [fetchCollections]
+  );
 
   const refreshFiles = useCallback(() => {
     fetchCollections();
   }, [fetchCollections]);
+
+  const matchTypeFilter = useCallback((file, typeLabel) => {
+    if (!typeLabel) return true;
+
+    const filename = file.name?.toLowerCase() || "";
+    const mime = file.type?.toLowerCase() || "";
+
+    const hasExtension = (exts = []) =>
+      exts.some((ext) => filename.endsWith(ext));
+
+    switch (typeLabel) {
+      case "PDFs":
+        return mime.includes("pdf") || filename.endsWith(".pdf");
+
+      case "Images":
+        return (
+          mime.startsWith("image/") ||
+          hasExtension([".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"])
+        );
+
+      case "Videos":
+        return (
+          mime.startsWith("video/") ||
+          hasExtension([".mp4", ".mov", ".avi", ".mkv", ".webm"])
+        );
+
+      case "Audio":
+        return (
+          mime.startsWith("audio/") ||
+          hasExtension([".mp3", ".wav", ".aac", ".flac", ".ogg"])
+        );
+
+      case "Documents":
+        return (
+          hasExtension([".doc", ".docx", ".txt", ".rtf"]) ||
+          mime.includes("wordprocessing")
+        );
+
+      case "Spreadsheets":
+        return (
+          hasExtension([".xls", ".xlsx", ".csv"]) || mime.includes("spreadsheet")
+        );
+
+      case "Presentations":
+        return (
+          hasExtension([".ppt", ".pptx", ".key"]) ||
+          mime.includes("presentation")
+        );
+
+      case "Folders":
+        return (file.type || "").toLowerCase() === "folder";
+
+      default:
+        return true;
+    }
+  }, []);
+
+  const [filterMode, setFilterMode] = useState("files");
+  const [typeFilter, setTypeFilter] = useState(null);
+  const [peopleFilter, setPeopleFilter] = useState(null);
+  const [modifiedFilter, setModifiedFilter] = useState(null);
+  const [sourceFilter, setSourceFilter] = useState(null);
+
+  const filterByModified = useCallback(
+    (list) => {
+      if (!modifiedFilter) return list;
+
+      const today = new Date();
+
+      return list.filter((file) => {
+        const date = new Date(
+          file.lastAccessedAt || file.uploadedAt || file.dateUploaded
+        );
+        if (!date) return false;
+
+        switch (modifiedFilter) {
+          case "today":
+            return date.toDateString() === today.toDateString();
+
+          case "week":
+            return today - date <= 7 * 24 * 60 * 60 * 1000;
+
+          case "month":
+            return (
+              date.getMonth() === today.getMonth() &&
+              date.getFullYear() === today.getFullYear()
+            );
+
+          default:
+            return true;
+        }
+      });
+    },
+    [modifiedFilter]
+  );
+
+  const matchesSource = useCallback((file, source) => {
+    switch (source) {
+      case "anywhere":
+        return !file.isDeleted;
+
+      case "myDrive":
+        return (
+          !file.isDeleted &&
+          ((file.location || "").toLowerCase() === "my drive" ||
+            !file.location)
+        );
+
+      case "shared":
+        return (
+          !file.isDeleted &&
+          ((file.location || "").toLowerCase().includes("shared") ||
+            (file.sharedWith?.length ?? 0) > 0)
+        );
+
+      case "starred":
+        return file.isStarred && !file.isDeleted;
+
+      case "trash":
+        return !!file.isDeleted;
+
+      default:
+        return !file.isDeleted;
+    }
+  }, []);
+
+  const filteredFiles = useMemo(() => {
+    let list = [...files];
+
+    if (filterMode === "files") {
+      list = list.filter(
+        (file) => (file.type || "").toLowerCase() !== "folder"
+      );
+    } else if (filterMode === "folders") {
+      list = list.filter(
+        (file) => (file.type || "").toLowerCase() === "folder"
+      );
+    }
+
+    if (typeFilter) {
+      list = list.filter((file) => matchTypeFilter(file, typeFilter));
+    }
+
+    if (peopleFilter === "owned") {
+      list = list.filter((file) =>
+        (file.owner || "").toLowerCase().includes("me")
+      );
+    } else if (peopleFilter === "sharedWithMe") {
+      list = list.filter((file) =>
+        (file.location || "").toLowerCase().includes("shared")
+      );
+    } else if (peopleFilter === "sharedByMe") {
+      list = list.filter(
+        (file) =>
+          (file.owner || "").toLowerCase().includes("me") &&
+          (file.sharedWith?.length ?? 0) > 0
+      );
+    }
+
+    list = filterByModified(list);
+
+    if (sourceFilter) {
+      list = list.filter((file) => matchesSource(file, sourceFilter));
+    }
+
+    return list;
+  }, [
+    files,
+    filterMode,
+    typeFilter,
+    peopleFilter,
+    matchTypeFilter,
+    filterByModified,
+    sourceFilter,
+    matchesSource,
+  ]);
+
+  const filterBySource = useCallback(
+    (list, fallback = "anywhere") => {
+      const active = sourceFilter || fallback;
+      return list.filter((file) => matchesSource(file, active));
+    },
+    [sourceFilter, matchesSource]
+  );
 
   return (
     <FileContext.Provider
@@ -455,10 +647,21 @@ export const FileProvider = ({ children }) => {
         files,
         trashFiles,
         sharedFiles,
+        filteredFiles,
         loading,
         uploading,
         error,
-        refreshFiles,
+        filterMode,
+        setFilterMode,
+        typeFilter,
+        setTypeFilter,
+        peopleFilter,
+        setPeopleFilter,
+        modifiedFilter,
+        setModifiedFilter,
+        sourceFilter,
+        setSourceFilter,
+        filterBySource,
         toggleStar,
         moveToTrash,
         restoreFromBin,
@@ -467,6 +670,7 @@ export const FileProvider = ({ children }) => {
         copyFile,
         downloadFile,
         uploadFiles,
+        refreshFiles,
       }}
     >
       {children}

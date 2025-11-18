@@ -330,6 +330,59 @@ export const FileProvider = ({ children }) => {
     []
   );
 
+  // copyFile: figures out which file to duplicate, builds a copy name, either mocks the copy or sends the real copy request to backend based on the boolean, inserts the copy into the local file list
+  const copyFile = useCallback(async (target) => {
+      if (!target) return null;
+
+      const file = 
+        typeof target === "string" // string => treat it as an id and look for the file in regular files, trash files, shared files
+          ? filesRef.current.find((item) => item.id === target) ||
+            trashRef.current.find((item) => item.id === target) ||
+            sharedFiles.find((item) => item.id === target)
+          : target; // !string => treat it as a file object 
+
+      if (!file?.id) return null;  //no file with id is found 
+
+      const timestamp = new Date().toISOString();
+      const defaultName = `Copy of ${file.name || "Untitled"}`;
+
+      if (USE_MOCK_DATA) { // when mockdata = false, doesnt apply, backend request happens
+        const mockCopy = {
+          ...file,
+          id: `mock-copy-${Date.now()}-${file.id}`,
+          name: defaultName,
+          isStarred: false,
+          isDeleted: false,
+          uploadedAt: timestamp,
+          lastAccessedAt: timestamp,
+        };
+        setFiles((prev) => [mockCopy, ...prev]);
+        return mockCopy;
+      }
+
+      try {
+        const { data } = await apiClient.post(`/files/${file.id}/copy`, {
+          newName: defaultName,
+        });
+        const normalized = normalizeFile(data.file); //turn it into the format frontend expects
+        if (normalized) { 
+          setFiles((prev) => [normalized, ...prev]); //insert file at the top of the list
+          return normalized;
+        }
+        await fetchCollections(); //if normalization failed reload everything
+        return null;
+      } catch (err) {
+        setError(
+          err.response?.data?.message ||
+            err.message ||
+            "Unable to copy file at the moment."
+        );
+        throw err;
+      }
+    },
+    [fetchCollections, sharedFiles]
+  );
+
   const uploadFiles = useCallback(async (selectedFiles, options = {}) => {
     if (!selectedFiles?.length) return [];
     setUploading(true);
@@ -416,6 +469,7 @@ export const FileProvider = ({ children }) => {
         restoreFromBin,
         deleteForever,
         renameFile,
+        copyFile,
         downloadFile,
         uploadFiles,
       }}

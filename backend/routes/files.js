@@ -368,6 +368,78 @@ router.patch("/:id/rename", async (req, res) => {
     }
 });
 
+// POST /files/:id/copy
+router.post("/:id/copy", async (req, res) => {
+    try {
+        if (!req.user) return res.status(401).json({ message: "Not authenticated" });
+        if (!gridfsBucket) return res.status(500).json({ message: "File storage not initialized" });
+
+        const original = await File.findOne({ // find original file, ensure owner owns file anf that file exists
+            _id: req.params.id,
+            owner: req.user._id,
+        });
+        if (!original) return res.status(404).json({ message: "File not found" });
+
+        const { newName } = req.body || {};
+        const trimmed = typeof newName === "string" ? newName.trim() : "";
+        const copyName = trimmed || `Copy of ${original.filename || "Untitled"}`; // determine copy name
+
+        const [gridFile] = await gridfsBucket.find({ _id: original.gridFsId }).toArray(); //read original file metadata from gridfs 
+        if (!gridFile) {
+            return res.status(404).json({ message: "Original file data missing" });
+        }
+        const sizeBytes = gridFile.length ?? original.size ?? 0;
+
+        const newGridFsId = await new Promise((resolve, reject) => { //stream copy file inside mongodb
+            const timestamp = new Date();
+            const uploadStream = gridfsBucket.openUploadStream(copyName, {
+                contentType: original.type,
+                metadata: {
+                    owner: new ObjectId(req.user._id),
+                    copiedFrom: original.gridFsId,
+                    copiedAt: timestamp,
+                },
+            });
+            const downloadStream = gridfsBucket.openDownloadStream(original.gridFsId);
+
+            downloadStream.on("error", reject);
+            uploadStream.on("error", reject);
+            uploadStream.on("finish", () => resolve(uploadStream.id));
+
+            downloadStream.pipe(uploadStream);
+        });
+
+        if (sizeBytes > 0) {
+            await updateStorage(req.user._id, sizeBytes, "add"); //update storage
+        }
+
+        const fileCopy = new File({
+            gridFsId: newGridFsId,
+            filename: copyName,
+            originalName: original.originalName || original.filename,
+            owner: req.user._id,
+            size: original.size || sizeBytes,
+            type: original.type,
+            location: original.location || "My Drive",
+            folderId: original.folderId,
+            path: Array.isArray(original.path) ? [...original.path] : [],
+            isStarred: false,
+            isDeleted: false,
+            description: original.description || "",
+            sharedWith: [],
+        });
+
+        const savedCopy = await fileCopy.save();
+        const populatedCopy = await savedCopy.populate("owner", OWNER_FIELDS); 
+
+        res.status(201).json({ message: "File copied", file: populatedCopy });
+
+    } catch (err) {
+        console.error("POST /copy error:", err);
+        res.status(500).json({ message: "Server error duplicating file" });
+    }
+});
+
 
 // PATCH /files/:id/star
 router.patch("/:id/star", async (req, res) => {

@@ -17,12 +17,85 @@ import UploadIcon from "@mui/icons-material/Upload";
 import EditIcon from "@mui/icons-material/Edit";
 import DriveFileMoveIcon from "@mui/icons-material/DriveFileMove";
 import HistoryEduIcon from "@mui/icons-material/HistoryEdu";
+import { API_BASE_URL } from "../services/apiClient";
+import { useFiles } from "../context/fileContext";
+import { useEffect } from "react";
 
-export default function DetailsPanel({ open, file, onClose }) {
+// --- HELPERS FOR FORMATTING ---
+const formatSize = (bytes) => {
+  if (bytes === 0 || bytes === undefined) return "0 B";
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const val = bytes / Math.pow(1024, i);
+  return `${val.toFixed(val >= 10 ? 0 : 1)} ${sizes[i]}`;
+};
+
+const formatDate = (isoString) => {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  });
+};
+
+const formatType = (file) => {
+  if (!file) return "";
+
+  const mime = (file.type || "").toLowerCase();
+  const name = (file.name || "").toLowerCase();
+  const ext = name.split(".").pop();
+
+  if ((file.type || "").toLowerCase() === "folder") return "Folder";
+
+  if (mime.includes("pdf") || ext === "pdf") return "PDF document";
+
+  if (
+    mime.includes("word") ||
+    mime.includes("wordprocessing") ||
+    ["doc", "docx"].includes(ext)
+  ) {
+    return "Word document";
+  }
+
+  if (
+    mime.includes("presentation") ||
+    ["ppt", "pptx"].includes(ext)
+  ) {
+    return "Presentation";
+  }
+
+  if (
+    mime.includes("spreadsheet") ||
+    ["xls", "xlsx", "csv"].includes(ext)
+  ) {
+    return "Spreadsheet";
+  }
+
+  if (mime.startsWith("image/")) return "Image";
+  if (mime.startsWith("video/")) return "Video";
+  if (mime.startsWith("audio/")) return "Audio";
+
+  return mime || "Unknown type";
+};
+
+
+
+
+
+export default function DetailsPanel({ open, file, onClose, onManageAccess }) {
   if (!file) return null;
 
   const [tab, setTab] = useState(0); // 0 = Details, 1 = Activity
   const [description, setDescription] = useState(file.description || "");
+  const { refreshFiles } = useFiles();
+
+  useEffect(() => {
+  setDescription(file.description || "");
+  }, [file]);
+
+
 
   const isMobile = useMediaQuery("(max-width: 600px)");
   const drawerWidth = isMobile ? "100vw" : 360;
@@ -54,18 +127,16 @@ export default function DetailsPanel({ open, file, onClose }) {
   // access data temp until backend is ready
   const accessList = [
     {
-      name: "Hashem Awad",
+      name: file.owner,
       role: "Owner",
+      picture: file.ownerPicture || null,
     },
-    {
-      name: "Ahmad Faleh",
-      role: "Editor",
-    },
-    {
-      name: "Ameera Albahrani",
-      role: "Viewer",
-    },
-  ];
+    ...file.sharedWith.map((entry) => ({
+      name: entry.name,
+      role: entry.permission === "write" ? "Editor" : "Viewer",
+      picture: entry.picture,
+    })),
+];
 
   // --- FILE ICON LOOKUP ---
   const getFileIcon = (file) => {
@@ -85,8 +156,41 @@ export default function DetailsPanel({ open, file, onClose }) {
   };
 
   const getInitial = (name) => {
+
+
   return name?.charAt(0)?.toUpperCase() || "?";
   };
+
+  
+  const handleSaveDescription = async () => {
+  try {
+    const res = await fetch(
+      `${API_BASE_URL}/files/${file.id}/description`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ description }),
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error("Failed to update description");
+    }
+
+    const data = await res.json();
+
+    // update UI inside the panel
+    setDescription(data.file.description);
+
+    // refresh global file list
+    refreshFiles();
+
+  } catch (err) {
+    console.error(err);
+    alert("Unable to save description.");
+  }
+};
 
 
   return (
@@ -193,10 +297,10 @@ export default function DetailsPanel({ open, file, onClose }) {
         {tab === 0 && (
           <>
             <Typography sx={{ fontWeight: "bold" }}>Type</Typography>
-            <Typography sx={{ mb: 2 }}>{file.type}</Typography>
+            <Typography sx={{ mb: 2 }}>{formatType(file)}</Typography>
 
             <Typography sx={{ fontWeight: "bold" }}>Size</Typography>
-            <Typography sx={{ mb: 2 }}>{file.size}</Typography>
+            <Typography sx={{ mb: 2 }}>{formatSize(file.size)}</Typography>
 
             <Typography sx={{ fontWeight: "bold" }}>Location</Typography>
             <Typography sx={{ mb: 2 }}>{file.location}</Typography>
@@ -205,7 +309,7 @@ export default function DetailsPanel({ open, file, onClose }) {
             <Typography sx={{ mb: 2 }}>{file.owner}</Typography>
 
             <Typography sx={{ fontWeight: "bold" }}>Upload Date</Typography>
-            <Typography sx={{ mb: 2 }}>{file.uploadDate}</Typography>
+            <Typography sx={{ mb: 2 }}>{formatDate(file.uploadedAt)}</Typography>
 
             {/* ACCESS SECTION */}
             <Box sx={{ mt: 3 }}>
@@ -271,7 +375,7 @@ export default function DetailsPanel({ open, file, onClose }) {
                   cursor: "pointer",
                   "&:hover": { backgroundColor: "#dbe8fc" },
                 }}
-                onClick={() => console.log("Open manage access panel")}
+                onClick={() =>onManageAccess(file)}
               >
                 Manage access
               </Box>
@@ -302,7 +406,7 @@ export default function DetailsPanel({ open, file, onClose }) {
                 fontWeight: 600,
                 cursor: "pointer",
               }}
-              onClick={() => console.log("Save description:", description)}
+              onClick={handleSaveDescription}
             >
               Save
             </Box>

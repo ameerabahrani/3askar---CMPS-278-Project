@@ -774,6 +774,36 @@ router.get("/shared", async (req, res) => {
     }
 });
 
+// PATCH /files/:id/description
+router.patch("/:id/description", async (req, res) => {
+    try {
+        const { description } = req.body;
+
+        if (!req.user) 
+            return res.status(401).json({ message: "Not authenticated" });
+
+        if (typeof description !== "string")
+            return res.status(400).json({ message: "Invalid description" });
+
+        const updated = await File.findOneAndUpdate(
+            { _id: req.params.id, owner: req.user._id },
+            { $set: { description: description.trim() } },
+            { new: true }
+        ).populate("owner", OWNER_FIELDS)
+         .populate("sharedWith.user", "name email picture");
+
+        if (!updated)
+            return res.status(404).json({ message: "File not found" });
+
+        res.json({ message: "Description updated", file: updated });
+
+    } catch (err) {
+        console.error("PATCH /description error:", err);
+        res.status(500).json({ message: "Server error updating description" });
+    }
+});
+
+
 
 module.exports = router;
 

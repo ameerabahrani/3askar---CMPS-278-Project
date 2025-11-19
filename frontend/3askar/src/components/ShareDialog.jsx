@@ -21,6 +21,10 @@ function ShareDialog({ open, file, onClose }) {
   const [email, setEmail] = React.useState("");
   const [permission, setPermission] = React.useState("read");
   const [collaborators, setCollaborators] = React.useState([]);
+  const [copied, setCopied] = React.useState(false);
+
+
+  const shareLink = `${window.location.origin}/files/${file?.id}/download`;
 
   // Load collaborators from file
   React.useEffect(() => {
@@ -28,6 +32,17 @@ function ShareDialog({ open, file, onClose }) {
       setCollaborators(file.sharedWith || []);
     }
   }, [file]);
+
+  const handleCopyLink = async () => {
+  try {
+    await navigator.clipboard.writeText(shareLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  } catch (err) {
+    console.error("Copy failed:", err);
+  }
+};
+
 
   // Reset input on close/open
   React.useEffect(() => {
@@ -73,6 +88,7 @@ function ShareDialog({ open, file, onClose }) {
 
   // 2. Update collaborator permission
   const handlePermissionChange = async (col, newPerm) => {
+    if (!col.user?._id) return;
     await apiClient.patch(`/files/${file.id}/permission`, {
       userId: col.user._id,
       permission: newPerm
@@ -85,8 +101,9 @@ function ShareDialog({ open, file, onClose }) {
     );
   };
 
-  // 🔵 3. Remove collaborator
+  //  3. Remove collaborator
   const handleRemove = async (col) => {
+    if (!col.user?._id) return;
     await apiClient.patch(`/files/${file.id}/unshare`, {
       userId: col.user._id
     });
@@ -107,7 +124,7 @@ function ShareDialog({ open, file, onClose }) {
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-
+      
       <DialogContent dividers>
         {/* Add collaborator */}
         <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
@@ -154,7 +171,9 @@ function ShareDialog({ open, file, onClose }) {
             No one else has access
           </Typography>
         ) : (
-          collaborators.map((col, index) => (
+          collaborators
+            .filter((col) => col.user && typeof col.user === 'object' && col.user.email)
+            .map((col, index) => (
             <Box
               key={index}
               sx={{
@@ -167,12 +186,12 @@ function ShareDialog({ open, file, onClose }) {
               }}
             >
               <Avatar sx={{ mr: 2 }}>
-                {col.user.email.charAt(0).toUpperCase()}
+                {col.user?.email?.charAt(0).toUpperCase() || '?'}
               </Avatar>
 
               <Box sx={{ flexGrow: 1 }}>
                 <Typography sx={{ fontWeight: 500 }}>
-                  {col.user.email}
+                  {col.user?.email || 'Unknown User'}
                 </Typography>
               </Box>
 

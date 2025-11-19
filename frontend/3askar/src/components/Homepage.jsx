@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Box,
   Typography,
@@ -30,9 +30,11 @@ import {
 } from "../api/foldersApi";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useFiles } from "../context/fileContext.jsx";
+import DetailsPanel from "./DetailsPanel.jsx";
+import ShareDialog from "./ShareDialog.jsx";
 
 function Homepage({ initialView = "MY_DRIVE" }) {
-  const { filteredFiles, loading } = useFiles();
+at a
 
   const [viewMode, setViewMode] = React.useState("list");
 
@@ -354,6 +356,22 @@ function Homepage({ initialView = "MY_DRIVE" }) {
       ? `You opened ${new Date(file.lastAccessedAt).toLocaleDateString()}`
       : "Recently added",
   }));
+
+  useEffect(() => {
+  if (!selectedFile) return;
+
+  const updated = files.find(f => f.id === selectedFile.id);
+  if (updated) setSelectedFile(updated);
+}, [files]);
+
+useEffect(() => {
+  if (!detailsFile) return;
+
+  const updated = files.find(f => f.id === detailsFile.id);
+  if (updated) setDetailsFile(updated);
+}, [files]);
+
+
 
   if (loading) {
     return <Typography sx={{ p: 2 }}>Loading recent files...</Typography>;
@@ -856,7 +874,39 @@ function Homepage({ initialView = "MY_DRIVE" }) {
         open={menuOpen}
         onClose={handleMenuClose}
         selectedFile={selectedFile}
+        onStartShare={(file) => {
+          setFileToShare(file);
+          setShareDialogOpen(true);
+        }}
+        onViewDetails={(file) => {
+          setDetailsFile(file);
+          setDetailsPanelOpen(true);
+        }}
       />
+
+
+      <DetailsPanel
+        open={detailsPanelOpen}
+        file={detailsFile}
+        onClose={() => setDetailsPanelOpen(false)}
+        onManageAccess={(file) => {
+          setDetailsPanelOpen(false);
+          setFileToShare(file);
+          setShareDialogOpen(true);
+        }}
+      />
+
+      <ShareDialog
+      open={shareDialogOpen}
+      file={fileToShare}
+      onClose={() => {
+        setShareDialogOpen(false);
+        setFileToShare(null);
+      }}
+    />
+
+
+
     </Box>
   );
 }

@@ -127,7 +127,15 @@ const normalizeFile = (file) => {
     lastAccessedAt: file.lastAccessed || file.lastAccessedAt,
     isStarred: Boolean(file.isStarred),
     isDeleted: Boolean(file.isDeleted),
-    sharedWith: Array.isArray(file.sharedWith) ? file.sharedWith : [],
+    sharedWith: Array.isArray(file.sharedWith)
+      ? file.sharedWith.map(entry => ({
+          userId: entry.user?._id || entry.user,
+          name: entry.user?.name || null,
+          email: entry.user?.email || null,
+          picture: entry.user?.picture || null,
+          permission: entry.permission,
+        }))
+      : [],
     size: file.size,
     type: file.type,
     description: file.description || "",

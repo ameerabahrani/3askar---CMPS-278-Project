@@ -314,6 +314,7 @@ router.get("/", async (req, res) => {
             isDeleted: false,
         })
         .populate("owner", OWNER_FIELDS)
+        .populate("sharedWith.user", "firstName lastName email")
         .sort({ uploadDate: -1 }); // newest first (descending)
 
         res.json(files);
@@ -557,6 +558,7 @@ router.get("/list/mydrive", async (req, res) => {
             folderId: null
         })
         .populate("owner", OWNER_FIELDS)
+        .populate("sharedWith.user", "firstName lastName email")
         .sort({ filename: 1 });
 
         res.json(files);
@@ -574,7 +576,9 @@ router.get("/list/folder/:folderId", async (req, res) => {
             owner: req.user._id,
             isDeleted: false,
             folderId: req.params.folderId
-        }).populate("owner", OWNER_FIELDS);
+        })
+        .populate("owner", OWNER_FIELDS)
+        .populate("sharedWith.user", "firstName lastName email");
 
         res.json(files);
     } catch (err) {
@@ -591,7 +595,9 @@ router.get("/list/starred", async (req, res) => {
             owner: req.user._id,
             isDeleted: false,
             isStarred: true
-        }).populate("owner", OWNER_FIELDS);
+        })
+        .populate("owner", OWNER_FIELDS)
+        .populate("sharedWith.user", "firstName lastName email");
 
         res.json(files);
     } catch (err) {
@@ -607,7 +613,9 @@ router.get("/list/trash", async (req, res) => {
         const files = await File.find({
             owner: req.user._id,
             isDeleted: true
-        }).populate("owner", OWNER_FIELDS);
+        })
+        .populate("owner", OWNER_FIELDS)
+        .populate("sharedWith.user", "firstName lastName email");
 
         res.json(files);
     } catch (err) {
@@ -625,6 +633,7 @@ router.get("/list/recent", async (req, res) => {
             isDeleted: false
         })
         .populate("owner", OWNER_FIELDS)
+        .populate("sharedWith.user", "firstName lastName email")
         .sort({ lastAccessed: -1 })
         .limit(20); //check if its for all 
 
@@ -729,7 +738,9 @@ router.get("/shared", async (req, res) => {
         const files = await File.find({
             "sharedWith.user": req.user._id,
             isDeleted: false
-        }).populate("owner", OWNER_FIELDS);
+        })
+        .populate("owner", OWNER_FIELDS)
+        .populate("sharedWith.user", "firstName lastName email");
 
         res.json(files);
 

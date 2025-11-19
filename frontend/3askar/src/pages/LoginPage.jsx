@@ -17,6 +17,8 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -41,6 +43,7 @@ const isStrongPassword = (value) => {
 };
 
 export default function LoginPage() {
+  const { setUser } = useAuth();
   const navigate = useNavigate();
 
   // LOGIN STATE
@@ -158,7 +161,8 @@ export default function LoginPage() {
   };
 
   // LOGIN
-  const handleLogin = async () => {
+  const handleLogin = async (event) => {
+    if (event) event.preventDefault();
     setShowLoginErrors(true);
 
     const required = [
@@ -200,8 +204,23 @@ export default function LoginPage() {
 
       const msg = await res.text();
       if (res.ok) {
-        // Redirect to homepage on successful login
-        navigate('/');
+        try {
+          const profileRes = await fetch(`${API_URL}/user/profile`, {
+            method: "GET",
+            credentials: "include",
+          });
+
+          if (profileRes.ok) {
+            const profileData = await profileRes.json();
+            setUser(profileData);
+          } else {
+            console.warn("Login succeeded but /user/profile failed");
+          }
+        } catch (e) {
+          console.error("Error fetching profile after login:", e);
+        }
+
+        navigate("/");
       } else {
         setLoginAlert({ severity: "error", message: msg || "Login failed" });
       }
@@ -358,13 +377,17 @@ export default function LoginPage() {
             </Typography>
 
             <Typography variant="body2" color="blackSecondary" sx={{ mb: 1 }}>
-              to continue to Google Drive
+              to continue to 3askar Drive
             </Typography>
           </Box>
 
           {/* LOGIN MODE */}
           {mode === "login" && (
-            <>
+            <form 
+              onSubmit={handleLogin}
+              noValidate
+              style={{ margin: 0, padding: 0 }}
+            >
               {loginAlert && (
                 <Alert
                   severity={loginAlert.severity}
@@ -577,7 +600,7 @@ export default function LoginPage() {
                   )}
                 </Button>
               </Box>
-            </>
+            </form>
           )}
 
           {/* CREATE ACCOUNT MODE */}

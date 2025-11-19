@@ -318,14 +318,14 @@ export const FileProvider = ({ children }) => {
   );
 
   const downloadFile = useCallback((file) => {
-    if (!file?.id) return;
+    if (!file?.gridFsId) return;
 
     if (USE_MOCK_DATA) {
       window.alert("Downloads are unavailable in mock mode.");
       return;
     }
 
-    const url = `${API_BASE_URL}/files/${file.id}/download`;
+    const url = `${API_BASE_URL}/files/${file.gridFsId}/download`;
     window.open(url, "_blank", "noopener,noreferrer");
   }, []);
 

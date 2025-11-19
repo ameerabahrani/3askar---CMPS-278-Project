@@ -150,6 +150,10 @@ export const FileProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [searchResults, setSearchResults] = useState(null);
+  const [searching, setSearching] = useState(false);
+
+  
 
   const filesRef = useRef([]);
   const trashRef = useRef([]);
@@ -461,6 +465,84 @@ export const FileProvider = ({ children }) => {
     [fetchCollections]
   );
 
+    const runFileSearch = useCallback(
+    async (params = {}) => {
+      // Basic guard: if everything is empty, clear search
+      const {
+        q,
+        type,
+        owner,
+        location,
+        starred,
+        inBin,
+        dateModified,
+        afterDate,
+        beforeDate,
+        includesWords,
+        itemName,
+      } = params;
+
+      const hasSomething =
+        (q && q.trim()) ||
+        (itemName && itemName.trim()) ||
+        (includesWords && includesWords.trim()) ||
+        (type && type !== "any") ||
+        (owner && owner !== "anyone") ||
+        (location && location !== "anywhere") ||
+        starred === true ||
+        inBin === true ||
+        (dateModified && dateModified !== "anytime");
+
+      if (!hasSomething) {
+        setSearchResults(null);
+        return;
+      }
+
+      setSearching(true);
+
+      try {
+        const queryParams = {
+          // simple text query
+          q: q || "",
+          type: type || "any",
+          owner: owner || "anyone",
+          location: location || "anywhere",
+          dateModified: dateModified || "anytime",
+          includesWords: includesWords || "",
+          itemName: itemName || "",
+        };
+
+        if (starred === true) queryParams.starred = "true";
+        if (inBin === true) queryParams.inBin = "true";
+        if (afterDate) queryParams.afterDate = afterDate;
+        if (beforeDate) queryParams.beforeDate = beforeDate;
+
+        const { data } = await apiClient.get("/files/search", {
+          params: queryParams,
+        });
+
+        const normalized = (data || []).map(normalizeFile).filter(Boolean);
+        setSearchResults(normalized);
+        setError(null);
+      } catch (err) {
+        console.error("runFileSearch error:", err);
+        setError(
+          err.response?.data?.message ||
+            err.message ||
+            "Unable to search files right now."
+        );
+      } finally {
+        setSearching(false);
+      }
+    },
+    []
+  );
+
+  const clearSearch = useCallback(() => {
+    setSearchResults(null);
+  }, []);
+
+
   const refreshFiles = useCallback(() => {
     fetchCollections();
   }, [fetchCollections]);
@@ -591,6 +673,11 @@ export const FileProvider = ({ children }) => {
   }, []);
 
   const filteredFiles = useMemo(() => {
+    // If a search is active, just show search results
+    if (searchResults) {
+      return searchResults;
+    }
+
     let list = [...files];
 
     if (filterMode === "files") {
@@ -639,7 +726,9 @@ export const FileProvider = ({ children }) => {
     filterByModified,
     sourceFilter,
     matchesSource,
+    searchResults,
   ]);
+
 
   const filterBySource = useCallback(
     (list, fallback = "anywhere") => {
@@ -659,6 +748,7 @@ export const FileProvider = ({ children }) => {
         loading,
         uploading,
         error,
+        searching,
         filterMode,
         setFilterMode,
         typeFilter,
@@ -679,6 +769,9 @@ export const FileProvider = ({ children }) => {
         downloadFile,
         uploadFiles,
         refreshFiles,
+        runFileSearch,
+        clearSearch,
+
       }}
     >
       {children}

@@ -20,9 +20,9 @@ function FileKebabMenu({
   onStartRename,
   onStartShare,
   onViewDetails,
+  onActionComplete,
 }) {
-  const { moveToTrash, toggleStar, renameFile, downloadFile, copyFile } =
-    useFiles();
+  const { moveToTrash, toggleStar, downloadFile, copyFile } = useFiles();
 
   const anchorReference = anchorPosition ? "anchorPosition" : "anchorEl";
 
@@ -40,6 +40,7 @@ function FileKebabMenu({
   const handleDownload = () => {
     if (!selectedFile) return;
     downloadFile(selectedFile);
+    onActionComplete?.("download", selectedFile);
     onClose?.();
   };
 
@@ -58,23 +59,25 @@ function FileKebabMenu({
   const handleCopy = async () => {
     if (!selectedFile) return;
     try {
-      await copyFile(selectedFile);
+      const copied = await copyFile(selectedFile);
+      onActionComplete?.("copy", copied || selectedFile);
     } catch (err) {
       console.error("Failed to copy file:", err);
-    } finally {
-      onClose?.();
     }
-  };
-
-  const handleTrash = () => {
-    if (!selectedFile) return;
-    moveToTrash(selectedFile.id);
     onClose?.();
   };
 
-  const handleStarToggle = () => {
+  const handleTrash = async () => {
     if (!selectedFile) return;
-    toggleStar(selectedFile.id);
+    await moveToTrash(selectedFile.id);
+    onActionComplete?.("trash", selectedFile);
+    onClose?.();
+  };
+
+  const handleStarToggle = async () => {
+    if (!selectedFile) return;
+    await toggleStar(selectedFile.id);
+    onActionComplete?.("star", selectedFile);
     onClose?.();
   };
 

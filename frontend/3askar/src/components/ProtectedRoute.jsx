@@ -24,7 +24,7 @@ const ProtectedRoute = () => {
       <Navbar />
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <Sidebar />
-        <div style={{ flex: 1, overflow: "hidden" }}>
+        <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
           <Outlet />
         </div>
       </div>

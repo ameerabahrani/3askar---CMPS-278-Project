@@ -26,8 +26,9 @@ function MyDrive() {
   // DETAILS PANEL
   const [detailsPanelOpen, setDetailsPanelOpen] = React.useState(false);
   const [detailsFile, setDetailsFile] = React.useState(null);
+  
 
-  const { files, loading, error, toggleStar, renameFile } = useFiles();
+  const { loading, error, toggleStar, renameFile, runFileSearch, filteredFiles } = useFiles();
 
   const [viewMode, setViewMode] = React.useState("list");
 
@@ -51,23 +52,23 @@ function MyDrive() {
     setSelectedFile(null);
   };
 
-    useEffect(() => {
+  useEffect(() => {
     if (!detailsFile) return;
-  
-    const updated = files.find(f => f.id === detailsFile.id);
+
+    const updated = filteredFiles.find(f => f.id === detailsFile.id);
     if (updated) setDetailsFile(updated);
-  }, [files]);
+  }, [filteredFiles]);
   
 
-  const driveFiles = React.useMemo(
-    () =>
-      files.filter(
-        (file) =>
-          !file.isDeleted &&
-          (file.location?.toLowerCase() === "my drive" || !file.location)
-      ),
-    [files]
-  );
+const driveFiles = React.useMemo(
+  () =>
+    filteredFiles.filter(
+      (file) =>
+        !file.isDeleted &&
+        (file.location?.toLowerCase() === "my drive" || !file.location)
+    ),
+  [filteredFiles]
+);
 
   if (loading) {
     return <Typography sx={{ p: 2 }}>Loading files...</Typography>;

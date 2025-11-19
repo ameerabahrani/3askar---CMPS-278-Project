@@ -1,12 +1,27 @@
 import React, { useState } from "react";
-import { Box, InputBase, IconButton, Dialog, DialogTitle, DialogContent, Typography, FormControl, InputLabel, Select, MenuItem, TextField, RadioGroup, Radio, FormControlLabel, Checkbox, Divider, Button } from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import {
+  Box,
+  InputBase,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  Typography,
+  Select,
+  MenuItem,
+  TextField,
+  RadioGroup,
+  Radio,
+  FormControlLabel,
+  Checkbox,
+  Divider,
+  Button,
+} from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import TuneIcon from "@mui/icons-material/Tune";
 import { styled, alpha } from "@mui/material/styles";
 import CloseIcon from "@mui/icons-material/Close";
-
-
-
 const SearchContainer = styled("div")(({ theme }) => ({
   display: "flex",
   alignItems: "center",
@@ -19,10 +34,12 @@ const SearchContainer = styled("div")(({ theme }) => ({
 }));
 
 export default function SearchBar() {
+  const navigate = useNavigate();
   const [focused, setFocused] = useState(false);
   const [openAdvanced, setOpenAdvanced] = useState(false);
   const advancedDialogBg = "#e9eef6";
 
+  const [searchText, setSearchText] = useState("");
   const [type, setType] = useState("any");
   const [owner, setOwner] = useState("anyone");
   const [includesWords, setIncludesWords] = useState("");
@@ -37,7 +54,7 @@ export default function SearchBar() {
 
 
   //returns all the elements to their default value or empty when reset
-  const handleReset = () => {
+const handleReset = () => {
   setType("any");
   setOwner("anyone");
   setIncludesWords("");
@@ -52,22 +69,29 @@ export default function SearchBar() {
 };
 
 const handleSearch = () => {
-  const filters = {
-    type,
-    owner,
-    includesWords,
-    itemName,
-    location,
-    starred,
-    inBin,
-    dateModified,
-    afterDate,
-    beforeDate
-  }; // doing this now to ease filtering later on when file system is implemented
+  const query = new URLSearchParams();
 
-  console.log("Advanced search filters:", filters); 
+  if (searchText.trim() && !itemName.trim()) {
+    query.set("q", searchText.trim());
+  }
 
-  // close the dialog
+  query.set("type", type);
+  query.set("owner", owner);
+  query.set("location", location);
+  query.set("dateModified", dateModified);
+
+  if (includesWords.trim()) query.set("includesWords", includesWords.trim());
+  if (itemName.trim()) query.set("itemName", itemName.trim());
+  if (starred) query.set("starred", "true");
+  if (inBin) query.set("inBin", "true");
+
+  if (dateModified === "custom") {
+    if (afterDate) query.set("afterDate", afterDate);
+    if (beforeDate) query.set("beforeDate", beforeDate);
+  }
+
+  const qs = query.toString();
+  navigate(qs ? `/search?${qs}` : "/search");
   setOpenAdvanced(false);
 };
 
@@ -115,6 +139,14 @@ React.useEffect(() => {
   };
 }, []);
 
+  const handleBasicSearch = () => {
+    const q = searchText.trim();
+
+    if (!q) return;
+
+    navigate(`/search?q=${encodeURIComponent(q)}`);
+  };
+
 
 
   return (
@@ -130,8 +162,11 @@ React.useEffect(() => {
           "&:hover": { backgroundColor: focused ? "#ffffff" : "#dfe3eb" },
         }}
       >
-        <IconButton sx={{ mr: 1, color: "#5f6368", "&:hover": { color: "#202124" } }}>
-            <SearchIcon />
+        <IconButton
+          sx={{ mr: 1, color: "#5f6368", "&:hover": { color: "#202124" } }}
+          onClick={handleBasicSearch}
+        >
+          <SearchIcon />
         </IconButton>
         <InputBase
           placeholder="Search in Drive"
@@ -145,6 +180,13 @@ React.useEffect(() => {
               fontWeight: 700,
               color: "#000000",
             },
+          }}
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              handleBasicSearch();
+            }
           }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}

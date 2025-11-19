@@ -490,6 +490,8 @@ function Homepage({ initialView = "MY_DRIVE" }) {
           </Typography>
 
           <Button
+            // Render as a non-button element to avoid nested <button> inside AccordionSummary
+            component="span"
             size="small"
             startIcon={<AddIcon />}
             onClick={(e) => {
@@ -853,7 +855,7 @@ function Homepage({ initialView = "MY_DRIVE" }) {
         anchorPosition={anchorPosition}
         open={menuOpen}
         onClose={handleMenuClose}
-        selectedItem={selectedFile}
+        selectedFile={selectedFile}
       />
     </Box>
   );

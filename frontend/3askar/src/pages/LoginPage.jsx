@@ -190,15 +190,25 @@ export default function LoginPage() {
     setLoginAlert(null);
     setShowLoginErrors(false);
 
-    const res = await fetch(`${API_URL}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, password, rememberMe }),
-    });
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password, rememberMe }),
+      });
 
-    const msg = await res.text();
-    console.log(msg);
+      const msg = await res.text();
+      if (res.ok) {
+        // Redirect to homepage on successful login
+        navigate('/');
+      } else {
+        setLoginAlert({ severity: "error", message: msg || "Login failed" });
+      }
+    } catch (err) {
+      setLoginAlert({ severity: "error", message: "Network error during login" });
+      console.error('Login error:', err);
+    }
   };
 
   // CREATE ACCOUNT
@@ -263,9 +273,17 @@ export default function LoginPage() {
         password,
       }),
     });
-
-    const msg = await res.text();
-    console.log(msg);
+    try {
+      const msg = await res.text();
+      if (res.ok) {
+        navigate('/');
+      } else {
+        setCreateAlert({ severity: "error", message: msg || "Account creation failed" });
+      }
+    } catch (err) {
+      setCreateAlert({ severity: "error", message: "Network error during account creation" });
+      console.error('Create account error:', err);
+    }
   };
 
   // GOOGLE

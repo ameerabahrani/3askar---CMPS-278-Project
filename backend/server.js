@@ -65,6 +65,7 @@ const ensureAuth = require('./middleware/auth');
 app.use("/auth", require("./routes/auth"));
 app.use("/user", ensureAuth ,require("./routes/user"));
 app.use("/files", ensureAuth ,require("./routes/files"));
+app.use("/folders", require("./routes/folders"));
 
 app.get("/", (req, res) => res.send("Mini Drive Backend Running ✅"));
 

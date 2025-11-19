@@ -2,19 +2,30 @@ const API_BASE_URL = "http://localhost:5000";
 
 
 async function handleResponse(response) {
-  if (!response.ok) {
-    let errorMessage = "Request failed";
+  // Read response body as text first so we can produce a helpful error message
+  const text = await response.text();
+  let data = null;
+  if (text) {
     try {
-      const data = await response.json();
-      if (data?.message) errorMessage = data.message; // if data object exists and has message property set value of error Message
+      data = JSON.parse(text);
     } catch (e) {
-      // Ignore JSON parse errors, keep generic message
+      data = text; // keep raw text if not JSON
     }
-    throw new Error(errorMessage);
   }
 
-  // If OK, return parsed JSON
-  return response.json();
+  if (!response.ok) {
+    const errorMessage =
+      (data && typeof data === "object" && data.message) ||
+      (typeof data === "string" && data) ||
+      `Request failed with status ${response.status} ${response.statusText}`;
+
+    const err = new Error(errorMessage);
+    err.response = { status: response.status, data };
+    throw err;
+  }
+
+  // Successful response: return parsed JSON (or raw text)
+  return data;
 }
 
 export { API_BASE_URL, handleResponse};

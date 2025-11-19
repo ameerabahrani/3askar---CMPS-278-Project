@@ -8,6 +8,7 @@ import React, {
   useMemo,
 } from "react";
 import apiClient, { API_BASE_URL } from "../services/apiClient";
+import { useAuth } from "./AuthContext";
 
 const FileContext = createContext();
 
@@ -145,6 +146,11 @@ export const FileProvider = ({ children }) => {
 
   const filesRef = useRef([]);
   const trashRef = useRef([]);
+
+  const { user } = useAuth() || {};
+  const currentUserId = user?._id ? user._id.toString() : null;
+  const currentUserEmail =
+    typeof user?.email === "string" ? user.email.toLowerCase() : null;
 
   useEffect(() => {
     filesRef.current = files;
@@ -457,6 +463,32 @@ export const FileProvider = ({ children }) => {
     fetchCollections();
   }, [fetchCollections]);
 
+  const matchesCurrentUser = useCallback(
+    (file) => {
+      if (!file) return false; //if file is unidentified
+
+      const ownerId = file.ownerId ? file.ownerId.toString() : null; //extract ownerId from file, if it exists -> convert to string, if not, set to null
+      if (ownerId && currentUserId && ownerId === currentUserId) { //if file has an ownerId, user has id, they match = file belongs to curr user
+        return true;
+      }
+
+      const ownerEmail =
+        typeof file.ownerEmail === "string"
+          ? file.ownerEmail.toLowerCase()
+          : null;
+      if (ownerEmail && currentUserEmail && ownerEmail === currentUserEmail) {
+        return true;
+      }
+
+      if (!currentUserId && !currentUserEmail) {
+        return (file.owner || "").toLowerCase() === "me";
+      }
+
+      return false;
+    },
+    [currentUserEmail, currentUserId]
+  );
+
   const matchTypeFilter = useCallback((file, typeLabel) => {
     if (!typeLabel) return true;
 
@@ -582,8 +614,36 @@ export const FileProvider = ({ children }) => {
     }
   }, []);
 
+  const combinedFiles = useMemo(() => {
+    const map = new Map();
+    files.forEach((file) => map.set(file.id, file));
+    sharedFiles.forEach((file) => {
+      if (!map.has(file.id)) {
+        map.set(file.id, file);
+      }
+    });
+    return Array.from(map.values());
+  }, [files, sharedFiles]);
+
+  const pickSourceList = useCallback(
+    (sourceValue) => {
+      switch (sourceValue) {
+        case "shared":
+          return sharedFiles;
+        case "anywhere":
+          return combinedFiles;
+        default:
+          return files;
+      }
+    },
+    [files, sharedFiles, combinedFiles]
+  );
+
   const filteredFiles = useMemo(() => {
-    let list = [...files];
+    const activeSource = sourceFilter || "myDrive";
+    let list = [...pickSourceList(activeSource)];
+
+    list = list.filter((file) => matchesSource(file, activeSource));
 
     if (filterMode === "files") {
       list = list.filter(
@@ -600,9 +660,7 @@ export const FileProvider = ({ children }) => {
     }
 
     if (peopleFilter === "owned") {
-      list = list.filter((file) =>
-        (file.owner || "").toLowerCase().includes("me")
-      );
+      list = list.filter((file) => matchesCurrentUser(file));
     } else if (peopleFilter === "sharedWithMe") {
       list = list.filter((file) =>
         (file.location || "").toLowerCase().includes("shared")
@@ -610,35 +668,63 @@ export const FileProvider = ({ children }) => {
     } else if (peopleFilter === "sharedByMe") {
       list = list.filter(
         (file) =>
-          (file.owner || "").toLowerCase().includes("me") &&
+          matchesCurrentUser(file) &&
           (file.sharedWith?.length ?? 0) > 0
       );
+    } else if (
+      peopleFilter &&
+      typeof peopleFilter === "object" &&
+      peopleFilter.kind === "person"
+    ) {
+      list = list.filter((file) => {
+        const ownerId = file.ownerId ? file.ownerId.toString() : null;
+        const ownerEmail =
+          typeof file.ownerEmail === "string"
+            ? file.ownerEmail.toLowerCase()
+            : null;
+        const ownerName =
+          typeof file.owner === "string"
+            ? file.owner.trim().toLowerCase()
+            : null;
+
+        if (peopleFilter.ownerId && ownerId) {
+          if (peopleFilter.ownerId === ownerId) return true;
+        }
+
+        if (peopleFilter.ownerEmail && ownerEmail) {
+          if (peopleFilter.ownerEmail === ownerEmail) return true;
+        }
+
+        if (peopleFilter.ownerName && ownerName) {
+          if (peopleFilter.ownerName === ownerName) return true;
+        }
+
+        return false;
+      });
     }
 
     list = filterByModified(list);
 
-    if (sourceFilter) {
-      list = list.filter((file) => matchesSource(file, sourceFilter));
-    }
-
     return list;
   }, [
-    files,
+    pickSourceList,
+    matchesSource,
+    sourceFilter,
     filterMode,
     typeFilter,
     peopleFilter,
     matchTypeFilter,
     filterByModified,
-    sourceFilter,
-    matchesSource,
+    matchesCurrentUser,
   ]);
 
   const filterBySource = useCallback(
     (list, fallback = "anywhere") => {
       const active = sourceFilter || fallback;
-      return list.filter((file) => matchesSource(file, active));
+      const baseList = list ?? pickSourceList(active);
+      return baseList.filter((file) => matchesSource(file, active));
     },
-    [sourceFilter, matchesSource]
+    [sourceFilter, pickSourceList, matchesSource]
   );
 
   return (

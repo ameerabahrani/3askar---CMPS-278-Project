@@ -32,7 +32,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useFiles } from "../context/fileContext.jsx";
 
 function Homepage({ initialView = "MY_DRIVE" }) {
-  const { files, loading } = useFiles();
+  const { filteredFiles, loading } = useFiles();
 
   const [viewMode, setViewMode] = React.useState("list");
 
@@ -71,7 +71,7 @@ function Homepage({ initialView = "MY_DRIVE" }) {
     setSelectedFile(null);
   };
 
-  const recentFiles = [...files]
+  const recentFiles = [...filteredFiles]
     .filter((file) => !file.isDeleted)
     .sort((a, b) => new Date(b.lastAccessedAt) - new Date(a.lastAccessedAt))
     .slice(0, 20);
@@ -450,7 +450,7 @@ function Homepage({ initialView = "MY_DRIVE" }) {
         )}
       </Box>
 
-      <MenuBar />
+      <MenuBar visibleFiles={recentFiles} />
 
       <Accordion
         defaultExpanded

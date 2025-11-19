@@ -20,6 +20,7 @@ const File = require("../models/File");
 const User = require("../models/User");
 
 const OWNER_FIELDS = "name email picture";
+const SHARED_WITH_POPULATE = { path: "sharedWith.user", select: OWNER_FIELDS };
 
 let gridfsBucket; 
 // once mongoose connection is open, initialize GridFS bucket to make sure it's ready before handling requests
@@ -278,7 +279,10 @@ router.post("/saveMetadata", async (req, res) => {
 
         // Step 4: Save in MongoDB
         const savedFile = await newFile.save();
-        const populatedFile = await savedFile.populate("owner", OWNER_FIELDS);
+        const populatedFile = await savedFile.populate([
+            { path: "owner", select: OWNER_FIELDS },
+            SHARED_WITH_POPULATE,
+        ]);
         
         // Step 5: Respond
         res.status(201).json({
@@ -314,6 +318,7 @@ router.get("/", async (req, res) => {
             isDeleted: false,
         })
         .populate("owner", OWNER_FIELDS)
+        .populate(SHARED_WITH_POPULATE)
         .sort({ uploadDate: -1 }); // newest first (descending)
 
         res.json(files);
@@ -336,7 +341,9 @@ router.patch("/:id/rename", async (req, res) => {
             { _id: req.params.id, owner: req.user._id },
             { $set: { filename: newName } },
             { new: true }
-        ).populate("owner", OWNER_FIELDS);
+        )
+        .populate("owner", OWNER_FIELDS)
+        .populate(SHARED_WITH_POPULATE);
 
         if (!updated) return res.status(404).json({ message: "File not found" });
 
@@ -410,7 +417,10 @@ router.post("/:id/copy", async (req, res) => {
         });
 
         const savedCopy = await fileCopy.save();
-        const populatedCopy = await savedCopy.populate("owner", OWNER_FIELDS); 
+        const populatedCopy = await savedCopy.populate([
+            { path: "owner", select: OWNER_FIELDS },
+            SHARED_WITH_POPULATE,
+        ]); 
 
         res.status(201).json({ message: "File copied", file: populatedCopy });
 
@@ -432,7 +442,9 @@ router.patch("/:id/star", async (req, res) => {
             { _id: req.params.id, owner: req.user._id },
             { $set: { isStarred: !!isStarred } },
             { new: true }
-        ).populate("owner", OWNER_FIELDS);
+        )
+        .populate("owner", OWNER_FIELDS)
+        .populate(SHARED_WITH_POPULATE);
 
         if (!updated) return res.status(404).json({ message: "File not found" });
 
@@ -456,7 +468,9 @@ router.patch("/:id/trash", async (req, res) => { // put path to bin
             { _id: req.params.id, owner: req.user._id },
             { $set: { isDeleted: !!isDeleted } },
             { new: true }
-        ).populate("owner", OWNER_FIELDS);
+        )
+        .populate("owner", OWNER_FIELDS)
+        .populate(SHARED_WITH_POPULATE);
 
         if (!updated) return res.status(404).json({ message: "File not found" });
 
@@ -485,7 +499,9 @@ router.patch("/:id/move", async (req, res) => {
                 }
             },
             { new: true }
-        ).populate("owner", OWNER_FIELDS);
+        )
+        .populate("owner", OWNER_FIELDS)
+        .populate(SHARED_WITH_POPULATE);
 
         if (!updated) return res.status(404).json({ message: "File not found" });
 
@@ -557,6 +573,7 @@ router.get("/list/mydrive", async (req, res) => {
             folderId: null
         })
         .populate("owner", OWNER_FIELDS)
+        .populate(SHARED_WITH_POPULATE)
         .sort({ filename: 1 });
 
         res.json(files);
@@ -574,7 +591,9 @@ router.get("/list/folder/:folderId", async (req, res) => {
             owner: req.user._id,
             isDeleted: false,
             folderId: req.params.folderId
-        }).populate("owner", OWNER_FIELDS);
+        })
+        .populate("owner", OWNER_FIELDS)
+        .populate(SHARED_WITH_POPULATE);
 
         res.json(files);
     } catch (err) {
@@ -591,7 +610,9 @@ router.get("/list/starred", async (req, res) => {
             owner: req.user._id,
             isDeleted: false,
             isStarred: true
-        }).populate("owner", OWNER_FIELDS);
+        })
+        .populate("owner", OWNER_FIELDS)
+        .populate(SHARED_WITH_POPULATE);
 
         res.json(files);
     } catch (err) {
@@ -607,7 +628,9 @@ router.get("/list/trash", async (req, res) => {
         const files = await File.find({
             owner: req.user._id,
             isDeleted: true
-        }).populate("owner", OWNER_FIELDS);
+        })
+        .populate("owner", OWNER_FIELDS)
+        .populate(SHARED_WITH_POPULATE);
 
         res.json(files);
     } catch (err) {
@@ -625,6 +648,7 @@ router.get("/list/recent", async (req, res) => {
             isDeleted: false
         })
         .populate("owner", OWNER_FIELDS)
+        .populate(SHARED_WITH_POPULATE)
         .sort({ lastAccessed: -1 })
         .limit(20); //check if its for all 
 
@@ -657,7 +681,10 @@ router.patch("/:id/share", async (req, res) => {
         }
 
         await file.save();
-        const populated = await file.populate("owner", OWNER_FIELDS);
+        const populated = await file.populate([
+            { path: "owner", select: OWNER_FIELDS },
+            SHARED_WITH_POPULATE,
+        ]);
         res.json({ message: "File shared", file: populated });
 
     } catch (err) {
@@ -679,7 +706,10 @@ router.patch("/:id/unshare", async (req, res) => {
 
         file.sharedWith = file.sharedWith.filter(x => x.user.toString() !== userId);
         await file.save();
-        const populated = await file.populate("owner", OWNER_FIELDS);
+        const populated = await file.populate([
+            { path: "owner", select: OWNER_FIELDS },
+            SHARED_WITH_POPULATE,
+        ]);
 
         res.json({ message: "User unshared", file: populated });
 
@@ -707,7 +737,10 @@ router.patch("/:id/permission", async (req, res) => {
 
         target.permission = permission;
         await file.save();
-        const populated = await file.populate("owner", OWNER_FIELDS);
+        const populated = await file.populate([
+            { path: "owner", select: OWNER_FIELDS },
+            SHARED_WITH_POPULATE,
+        ]);
 
         res.json({ message: "Permission updated", file: populated });
 
@@ -729,7 +762,9 @@ router.get("/shared", async (req, res) => {
         const files = await File.find({
             "sharedWith.user": req.user._id,
             isDeleted: false
-        }).populate("owner", OWNER_FIELDS);
+        })
+        .populate("owner", OWNER_FIELDS)
+        .populate(SHARED_WITH_POPULATE);
 
         res.json(files);
 

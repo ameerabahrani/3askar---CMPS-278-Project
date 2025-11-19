@@ -16,15 +16,30 @@ function FileKebabMenu({
   anchorPosition,
   open,
   onClose,
+
+  // ORIGINAL props (for files)
   selectedFile,
   onStartRename,
   onStartShare,
   onViewDetails,
+
+  // NEW optional folder props:
+  onRename,
+  onTrash,
+  onToggleStar,
+  onCopy,
+  isStarred,
+  isInTrash,
 }) {
+  // File actions (still needed for file mode)
   const { moveToTrash, toggleStar, renameFile, downloadFile, copyFile } =
     useFiles();
 
   const anchorReference = anchorPosition ? "anchorPosition" : "anchorEl";
+
+  // Detect whether menu is being used for folders
+  const isFolderMenu =
+    onRename || onTrash || onToggleStar || onCopy;
 
   const menuItemStyle = {
     display: "flex",
@@ -36,55 +51,68 @@ function FileKebabMenu({
 
   const iconStyle = { color: "rgba(0,0,0,0.6)" };
 
-  // --- Actions ---
+  // ---- ACTIONS ----
+
   const handleDownload = () => {
-    if (!selectedFile) return;
+    if (isFolderMenu) {
+      onClose?.();
+      return;
+    }
     downloadFile(selectedFile);
     onClose?.();
   };
 
   const handleRename = () => {
-    if (!selectedFile) return;
+    if (isFolderMenu) {
+      onRename?.();
+      onClose?.();
+      return;
+    }
     onStartRename?.(selectedFile);
     onClose?.();
   };
 
-  const handleShare = () => {
-    if (!selectedFile) return;
-    onStartShare?.(selectedFile);
+  const handleCopy = async () => {
+    if (isFolderMenu) {
+      await onCopy?.();
+      onClose?.();
+      return;
+    }
+    await copyFile(selectedFile);
     onClose?.();
   };
 
-  const handleCopy = async () => {
-    if (!selectedFile) return;
-    try {
-      await copyFile(selectedFile);
-    } catch (err) {
-      console.error("Failed to copy file:", err);
-    } finally {
-      onClose?.();
-    }
-  };
-
   const handleTrash = () => {
-    if (!selectedFile) return;
+    if (isFolderMenu) {
+      onTrash?.();
+      onClose?.();
+      return;
+    }
     moveToTrash(selectedFile.id);
     onClose?.();
   };
 
   const handleStarToggle = () => {
-    if (!selectedFile) return;
+    if (isFolderMenu) {
+      onToggleStar?.();
+      onClose?.();
+      return;
+    }
     toggleStar(selectedFile.id);
     onClose?.();
   };
 
-  const starLabel = selectedFile?.isStarred
+  const effectiveIsStarred = isFolderMenu
+    ? isStarred
+    : selectedFile?.isStarred;
+
+  const StarComponent = effectiveIsStarred ? StarIcon : StarBorderIcon;
+  const starLabel = effectiveIsStarred
     ? "Remove from starred"
     : "Add to starred";
 
-  const StarIconComponent = selectedFile?.isStarred
-    ? StarIcon
-    : StarBorderIcon;
+  const trashLabel =
+    isFolderMenu && isInTrash ? "Restore from trash" : "Move to trash";
 
   return (
     <Menu
@@ -101,14 +129,12 @@ function FileKebabMenu({
           border: "1px solid #e0e0e0",
           boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
           py: 0.5,
-          px: 0.5,
         },
       }}
     >
       <MenuItem
         onClick={handleDownload}
         sx={menuItemStyle}
-        disabled={!selectedFile}
       >
         <DownloadIcon fontSize="small" sx={iconStyle} />
         Download
@@ -117,7 +143,6 @@ function FileKebabMenu({
       <MenuItem
         onClick={handleRename}
         sx={menuItemStyle}
-        disabled={!selectedFile}
       >
         <DriveFileRenameOutlineIcon fontSize="small" sx={iconStyle} />
         Rename
@@ -126,7 +151,6 @@ function FileKebabMenu({
       <MenuItem
         onClick={handleCopy}
         sx={menuItemStyle}
-        disabled={!selectedFile}
       >
         <FileCopyIcon fontSize="small" sx={iconStyle} />
         Make a copy
@@ -134,46 +158,19 @@ function FileKebabMenu({
 
       <Divider sx={{ my: 0.5 }} />
 
-      <MenuItem onClick={handleShare} sx={menuItemStyle}>
-        <PersonAddIcon fontSize="small" sx={iconStyle} />
-        Share
-      </MenuItem>
-
-      <MenuItem onClick={onClose} sx={menuItemStyle}>
-        <DriveFileMoveIcon fontSize="small" sx={iconStyle} />
-        Organize
-      </MenuItem>
-
-      <MenuItem
-        onClick={() => {
-          if (onViewDetails && selectedFile) {
-            onViewDetails(selectedFile);
-          }
-          onClose();
-        }}
-        sx={menuItemStyle}
-      >
-        <InfoIcon fontSize="small" sx={iconStyle} />
-        File information
-      </MenuItem>
-
-      <Divider sx={{ my: 0.5 }} />
-
       <MenuItem
         onClick={handleTrash}
         sx={menuItemStyle}
-        disabled={!selectedFile}
       >
         <DeleteIcon fontSize="small" sx={iconStyle} />
-        Move to trash
+        {trashLabel}
       </MenuItem>
 
       <MenuItem
         onClick={handleStarToggle}
         sx={menuItemStyle}
-        disabled={!selectedFile}
       >
-        <StarIconComponent fontSize="small" sx={iconStyle} />
+        <StarComponent fontSize="small" sx={iconStyle} />
         {starLabel}
       </MenuItem>
     </Menu>

@@ -405,30 +405,6 @@ router.get("/search", ensureAuth, async (req, res) => {
 });
 
 
-// Get a single folder by ID (for info panel, renaming dialogs, checking permissions on single folder ) hala2 its not needed but later it will be so I did it now
-router.get("/:id", ensureAuth, async (req, res) => {
-  try {
-    const folder = await findFolderByAnyId(req.params.id);
-
-    if (!folder) {
-      return res.status(404).json({ message: "Folder not found" });
-    }
-
-    // Must have permission to read this folder
-    if (!canReadFolder(folder, req.user._id)) {
-      return res
-        .status(403)
-        .json({ message: "You do not have permission to view this folder" });
-    }
-
-    res.json(folder);
-  } catch (error) {
-    console.error("Error fetching folder by ID:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-
 // Breadcrumb for a folder
 router.get("/:id/breadcrumb", ensureAuth, async (req, res) => {
   try {
@@ -604,6 +580,27 @@ router.post("/:id/copy", ensureAuth, async (req, res) => {
   }
 });
 
+// Get a single folder by ID (for info panel, renaming dialogs, checking permissions on single folder ) hala2 its not needed but later it will be so I did it now
+router.get("/:id", ensureAuth, async (req, res) => {
+  try {
+    const folder = await findFolderByAnyId(req.params.id);
 
+    if (!folder) {
+      return res.status(404).json({ message: "Folder not found" });
+    }
+
+    // Must have permission to read this folder
+    if (!canReadFolder(folder, req.user._id)) {
+      return res
+        .status(403)
+        .json({ message: "You do not have permission to view this folder" });
+    }
+
+    res.json(folder);
+  } catch (error) {
+    console.error("Error fetching folder by ID:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 module.exports = router;

@@ -12,11 +12,37 @@ import FolderOutlinedIcon from "@mui/icons-material/FolderOutlined";
 import InsertDriveFileOutlinedIcon from "@mui/icons-material/InsertDriveFileOutlined";
 import CheckIcon from "@mui/icons-material/Check";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import ImageIcon from "@mui/icons-material/Image";
+import MovieIcon from "@mui/icons-material/Movie";
+import AudiotrackIcon from "@mui/icons-material/Audiotrack";
+import DescriptionIcon from "@mui/icons-material/Description";
+import TableChartIcon from "@mui/icons-material/TableChart";
+import SlideshowIcon from "@mui/icons-material/Slideshow";
 import { useFiles } from "../context/fileContext.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
-function MenuBar() {
+const TYPE_ICON_COMPONENTS = {
+  PDFs: PictureAsPdfIcon,
+  Images: ImageIcon,
+  Videos: MovieIcon,
+  Audio: AudiotrackIcon,
+  Documents: DescriptionIcon,
+  Spreadsheets: TableChartIcon,
+  Presentations: SlideshowIcon,
+  Folders: FolderOutlinedIcon,
+};
+
+const renderTypeIcon = (label) => {
+  const IconComponent = TYPE_ICON_COMPONENTS[label] || InsertDriveFileOutlinedIcon;
+  return (
+    <IconComponent sx={{ fontSize: 18, mr: 1, color: "#5f6368" }} />
+  );
+};
+
+function MenuBar({ visibleFiles } = {}) {
   const {
-    files,
+    filteredFiles,
     filterMode,
     setFilterMode,
     typeFilter,
@@ -28,6 +54,72 @@ function MenuBar() {
     sourceFilter,
     setSourceFilter,
   } = useFiles();
+  const { user } = useAuth() || {};
+  const currentUserId = user?._id ? user._id.toString() : null;
+  const currentUserEmail =
+    typeof user?.email === "string" ? user.email.toLowerCase() : null;
+  const currentUserName = React.useMemo(() => {
+    const value =
+      typeof user?.name === "string"
+        ? user.name
+        : typeof user?.fullName === "string"
+        ? user.fullName
+        : null;
+    return value ? value.trim().toLowerCase() : null;
+  }, [user]);
+
+  const scopedFiles = React.useMemo(() => {
+    if (Array.isArray(visibleFiles)) {
+      return visibleFiles.slice(0, 20);
+    }
+
+    return Array.isArray(filteredFiles) ? filteredFiles.slice(0, 20) : [];
+  }, [visibleFiles, filteredFiles]);
+
+  const normalizeName = React.useCallback((value) => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    return trimmed ? trimmed.toLowerCase() : null;
+  }, []);
+
+  const extractIdString = React.useCallback((value) => {
+    if (!value) return null;
+    if (typeof value === "string") return value;
+
+    if (typeof value === "object") {
+      const id =
+        value._id ??
+        value.id ??
+        (typeof value.toString === "function" ? value.toString() : null);
+
+      if (!id || id === "[object Object]") {
+        return null;
+      }
+
+      return id.toString();
+    }
+
+    return null;
+  }, []);
+
+  const isCurrentUserReference = React.useCallback(
+    (id, email, name) => {
+      if (id && currentUserId && id === currentUserId) return true;
+      if (email && currentUserEmail && email === currentUserEmail) return true;
+
+      const nameMatch = normalizeName(name);
+      if (currentUserName && nameMatch) {
+        return currentUserName === nameMatch;
+      }
+
+      if (!currentUserId && !currentUserEmail && nameMatch) {
+        return nameMatch === "me";
+      }
+
+      return false;
+    },
+    [currentUserEmail, currentUserId, currentUserName, normalizeName]
+  );
 
   // const dynamicTypes = React.useMemo(() => {
   //   const set = new Set();
@@ -46,36 +138,192 @@ function MenuBar() {
   // }, [files]);
 
   const dynamicTypes = React.useMemo(() => {
-  const set = new Set();
+    const set = new Set();
 
-  files.forEach((file) => { //for "Type" button
-    const name = file.name?.toLowerCase() || file.filename?.toLowerCase() || file.originalName?.toLowerCase() || "";
+    scopedFiles.forEach((file) => {
+      const name =
+        (file.name || file.filename || file.originalName || "")
+          .toLowerCase()
+          .trim();
 
-    // Detect by extension (most accurate)
-    if (name.endsWith(".pdf")) set.add("PDFs");
+      if (name.endsWith(".pdf")) set.add("PDFs");
+      if (/\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(name)) set.add("Images");
+      if (/\.(mp4|mov|mkv|avi|webm)$/i.test(name)) set.add("Videos");
+      if (/\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(name)) set.add("Audio");
+      if (/\.(doc|docx|txt|rtf)$/i.test(name)) set.add("Documents");
+      if (/\.(xls|xlsx|csv)$/i.test(name)) set.add("Spreadsheets");
+      if (/\.(ppt|pptx|key)$/i.test(name)) set.add("Presentations");
+      if ((file.type || "").toLowerCase() === "folder") set.add("Folders");
 
-    if (/\.(png|jpg|jpeg|gif|webp)$/i.test(name)) set.add("Images");
+      const mime = (file.type || "").toLowerCase();
+      if (mime.includes("pdf")) set.add("PDFs");
+      if (mime.startsWith("image/")) set.add("Images");
+      if (mime.startsWith("video/")) set.add("Videos");
+      if (mime.startsWith("audio/")) set.add("Audio");
+      if (mime.includes("spreadsheet")) set.add("Spreadsheets");
+      if (mime.includes("presentation")) set.add("Presentations");
+    });
 
-    if (/\.(mp4|mov|mkv|avi|webm)$/i.test(name)) set.add("Videos");
+    return Array.from(set);
+  }, [scopedFiles]);
 
-    if (/\.(mp3|wav|m4a|ogg)$/i.test(name)) set.add("Audio");
+  const peopleOptions = React.useMemo(() => {
+    const map = new Map();
 
-    if (/\.(doc|docx|txt|rtf)$/i.test(name)) set.add("Documents");
-    if(/\.(xls|xlsx|csv)$/i.test(name)) set.add("Spreadsheets");
+    const addEntry = ({
+      key,
+      label,
+      ownerId,
+      ownerEmail,
+      ownerName,
+    }) => {
+      if (!key || map.has(key)) return;
+      const fallbackLabel = label || ownerEmail || "Unknown user";
+      map.set(key, {
+        key,
+        label: fallbackLabel,
+        ownerId: ownerId || null,
+        ownerEmail: ownerEmail || null,
+        ownerName: ownerName || null,
+      });
+    };
 
-    // Folders (based on your file model)
-    if (file.type === "folder") set.add("Folders");
+    scopedFiles.forEach((file) => {
+      if (!file) return;
 
-    // Backup: check mimetype if available
-    const mime = file.type?.toLowerCase() || "";
-    if (mime.includes("pdf")) set.add("PDFs");
-    if (mime.includes("image")) set.add("Images");
-    if (mime.includes("video")) set.add("Videos");
-    if (mime.includes("audio")) set.add("Audio");
-  });
+      const ownerId = file.ownerId ? file.ownerId.toString() : null;
+      const ownerEmail =
+        typeof file.ownerEmail === "string"
+          ? file.ownerEmail.toLowerCase()
+          : null;
+      const ownerNameRaw =
+        typeof file.owner === "string" ? file.owner.trim() : "";
+      const ownerName = normalizeName(ownerNameRaw);
 
-  return Array.from(set);
-}, [files]);
+      if (!isCurrentUserReference(ownerId, ownerEmail, ownerNameRaw)) {
+        const ownerKey = ownerId || ownerEmail || ownerName || file.id;
+        const ownerDisplay =
+          ownerNameRaw ||
+          (file.ownerEmail ? file.ownerEmail : "Unknown owner");
+
+        addEntry({
+          key: `owner:${ownerKey}`,
+          label: `${ownerDisplay} • Shared by`,
+          ownerId,
+          ownerEmail,
+          ownerName,
+        });
+      }
+
+      const sharedList = Array.isArray(file.sharedWith)
+        ? file.sharedWith
+        : [];
+
+      sharedList.forEach((entry, index) => {
+        const participant = entry?.user || entry?.userDetails || entry;
+        const participantId = extractIdString(participant);
+
+        const participantEmailRaw =
+          (typeof participant === "object" &&
+            typeof participant.email === "string" &&
+            participant.email) ||
+          (typeof entry?.email === "string" ? entry.email : null);
+
+        const participantEmail = participantEmailRaw
+          ? participantEmailRaw.toLowerCase()
+          : null;
+
+        const participantNameRaw =
+          (typeof participant === "object" &&
+            typeof participant.name === "string" &&
+            participant.name) ||
+          (typeof participant === "object" &&
+            typeof participant.fullName === "string" &&
+            participant.fullName) ||
+          (typeof entry?.name === "string" ? entry.name : null) ||
+          (typeof entry?.label === "string" ? entry.label : null) ||
+          participantEmailRaw ||
+          "";
+
+        if (
+          isCurrentUserReference(
+            participantId,
+            participantEmail,
+            participantNameRaw
+          )
+        ) {
+          return;
+        }
+
+        const participantName = normalizeName(participantNameRaw);
+        const dedupeKey =
+          participantId ||
+          participantEmail ||
+          participantName ||
+          `${file.id}-${index}`;
+
+        const participantDisplay =
+          participantNameRaw || participantEmailRaw || "Unknown user";
+
+        addEntry({
+          key: `shared:${dedupeKey}`,
+          label: `${participantDisplay} • Shared to`,
+          ownerId: participantId,
+          ownerEmail: participantEmail,
+          ownerName: participantName,
+        });
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) =>
+      a.label.toLowerCase().localeCompare(b.label.toLowerCase())
+    );
+  }, [scopedFiles, isCurrentUserReference, normalizeName, extractIdString]);
+
+  const [typeSnapshot, setTypeSnapshot] = React.useState([]);
+
+  React.useEffect(() => {
+    if (!typeFilter) {
+      setTypeSnapshot(dynamicTypes);
+    }
+  }, [dynamicTypes, typeFilter]);
+
+  const renderedTypes = React.useMemo(() => {
+    if (typeFilter && typeSnapshot.length) {
+      return typeSnapshot;
+    }
+    return dynamicTypes;
+  }, [dynamicTypes, typeFilter, typeSnapshot]);
+
+  const doesFilterMatchPerson = React.useCallback((filter, person) => {
+    if (
+      !filter ||
+      typeof filter !== "object" ||
+      filter.kind !== "person" ||
+      !person
+    ) {
+      return false;
+    }
+
+    if (filter.ownerId && person.ownerId) {
+      if (filter.ownerId === person.ownerId) return true;
+    }
+
+    if (filter.ownerEmail && person.ownerEmail) {
+      if (filter.ownerEmail === person.ownerEmail) return true;
+    }
+
+    if (filter.ownerName && person.ownerName) {
+      if (filter.ownerName === person.ownerName) return true;
+    }
+
+    return false;
+  }, []);
+
+  const isPersonSelected = React.useCallback(
+    (person) => doesFilterMatchPerson(peopleFilter, person),
+    [peopleFilter, doesFilterMatchPerson]
+  );
 
   const handleChange = (_event, newView) => {
     if (newView !== null) setFilterMode(newView);
@@ -195,7 +443,7 @@ function MenuBar() {
         <Menu anchorEl={anchorEl} open={open} onClose={handleClose}>
           {/* TYPE FILTER */}
           {activeFilter === "type" &&
-            dynamicTypes.map((t) => (
+            renderedTypes.map((t) => (
               <MenuItem
                 key={t}
                 selected={typeFilter === t}
@@ -204,11 +452,14 @@ function MenuBar() {
                   handleClose();
                 }}
               >
-                {t}
+                <Box sx={{ display: "flex", alignItems: "center" }}>
+                  {renderTypeIcon(t)}
+                  {t}
+                </Box>
               </MenuItem>
             ))}
 
-          {activeFilter === "type" && dynamicTypes.length > 0 && (
+          {activeFilter === "type" && renderedTypes.length > 0 && (
             <MenuItem
               onClick={() => {
                 setTypeFilter(null);
@@ -219,16 +470,82 @@ function MenuBar() {
             </MenuItem>
           )}
 
-          {activeFilter === "type" && dynamicTypes.length === 0 && (
+          {activeFilter === "type" && renderedTypes.length === 0 && (
             <MenuItem disabled>No types available</MenuItem>
           )}
 
           {/* PEOPLE FILTER */}
-          {activeFilter === "people" && [
-            <MenuItem key="owned" onClick={() => { setPeopleFilter("owned"); handleClose(); }}>Owned by me</MenuItem>,
-            <MenuItem key="sharedWithMe" onClick={() => { setPeopleFilter("sharedWithMe"); handleClose(); }}>Shared with me</MenuItem>,
-            <MenuItem key="sharedByMe" onClick={() => { setPeopleFilter("sharedByMe"); handleClose(); }}>Shared by me</MenuItem>,
-          ]}
+          {activeFilter === "people" && (
+            <>
+              <MenuItem
+                key="owned"
+                selected={peopleFilter === "owned"}
+                onClick={() => {
+                  setPeopleFilter("owned");
+                  handleClose();
+                }}
+              >
+                Owned by me
+              </MenuItem>
+              <MenuItem
+                key="sharedWithMe"
+                selected={peopleFilter === "sharedWithMe"}
+                onClick={() => {
+                  setPeopleFilter("sharedWithMe");
+                  handleClose();
+                }}
+              >
+                Shared with me
+              </MenuItem>
+              <MenuItem
+                key="sharedByMe"
+                selected={peopleFilter === "sharedByMe"}
+                onClick={() => {
+                  setPeopleFilter("sharedByMe");
+                  handleClose();
+                }}
+              >
+                Shared by me
+              </MenuItem>
+
+              <Divider sx={{ my: 0.5 }} />
+
+              {peopleOptions.length > 0 ? (
+                peopleOptions.map((person) => (
+                  <MenuItem
+                    key={person.key}
+                    selected={isPersonSelected(person)}
+                    onClick={() => {
+                      setPeopleFilter({
+                        kind: "person",
+                        ownerId: person.ownerId,
+                        ownerEmail: person.ownerEmail,
+                        ownerName: person.ownerName,
+                        label: person.label,
+                      });
+                      handleClose();
+                    }}
+                  >
+                    {person.label}
+                  </MenuItem>
+                ))
+              ) : (
+                <MenuItem disabled>No people available</MenuItem>
+              )}
+
+              <Divider sx={{ my: 0.5 }} />
+
+              <MenuItem
+                key="people-all"
+                onClick={() => {
+                  setPeopleFilter(null);
+                  handleClose();
+                }}
+              >
+                Show all
+              </MenuItem>
+            </>
+          )}
 
           {/* MODIFIED */}
           {activeFilter === "modified" && [

@@ -23,6 +23,7 @@ const formatDate = (value) => {
 };
 
 function MyDrive() {
+  const { filteredFiles, loading, error, toggleStar, renameFile } = useFiles();
   // DETAILS PANEL
   const [detailsPanelOpen, setDetailsPanelOpen] = React.useState(false);
   const [detailsFile, setDetailsFile] = React.useState(null);
@@ -51,23 +52,7 @@ function MyDrive() {
     setSelectedFile(null);
   };
 
-    useEffect(() => {
-    if (!detailsFile) return;
-  
-    const updated = files.find(f => f.id === detailsFile.id);
-    if (updated) setDetailsFile(updated);
-  }, [files]);
-  
-
-  const driveFiles = React.useMemo(
-    () =>
-      files.filter(
-        (file) =>
-          !file.isDeleted &&
-          (file.location?.toLowerCase() === "my drive" || !file.location)
-      ),
-    [files]
-  );
+  const driveFiles = filteredFiles;
 
   if (loading) {
     return <Typography sx={{ p: 2 }}>Loading files...</Typography>;
@@ -99,7 +84,7 @@ function MyDrive() {
         My Drive
       </Typography>
 
-      <MenuBar />
+      <MenuBar visibleFiles={driveFiles} />
 
       {driveFiles.length === 0 ? (
         <Typography sx={{ p: 4, color: "#5f6368" }}>

@@ -20,8 +20,8 @@ function Starred() {
   const [menuEl, setMenuEl] = React.useState(null);
 
   const starredFiles = React.useMemo(
-    () => filterBySource(filteredFiles, "starred"),
-    [filteredFiles, filterBySource]
+    () => filterBySource(undefined, "starred"),
+    [filterBySource]
   );
 
   const sortedFiles = React.useMemo(() => {
@@ -87,7 +87,7 @@ function Starred() {
         Starred
       </Typography>
 
-      <MenuBar />
+      <MenuBar visibleFiles={sortedFiles} />
 
       <Box
         sx={{

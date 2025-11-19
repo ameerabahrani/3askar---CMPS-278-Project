@@ -34,16 +34,6 @@ import DetailsPanel from "./DetailsPanel.jsx";
 import ShareDialog from "./ShareDialog.jsx";
 
 function Homepage({ initialView = "MY_DRIVE" }) {
-  // DETAILS PANEL STATE
-  const [detailsPanelOpen, setDetailsPanelOpen] = React.useState(false);
-  const [detailsFile, setDetailsFile] = React.useState(null);
-
-  const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
-  const [fileToShare, setFileToShare] = React.useState(null);
-
-
-  const { files, loading } = useFiles();
-
   const [viewMode, setViewMode] = React.useState("list");
 
   const [menuAnchorEl, setMenuAnchorEl] = React.useState(null);
@@ -81,7 +71,7 @@ function Homepage({ initialView = "MY_DRIVE" }) {
     setSelectedFile(null);
   };
 
-  const recentFiles = [...files]
+  const recentFiles = [...filteredFiles]
     .filter((file) => !file.isDeleted)
     .sort((a, b) => new Date(b.lastAccessedAt) - new Date(a.lastAccessedAt))
     .slice(0, 20);
@@ -476,7 +466,7 @@ useEffect(() => {
         )}
       </Box>
 
-      <MenuBar />
+      <MenuBar visibleFiles={recentFiles} />
 
       <Accordion
         defaultExpanded

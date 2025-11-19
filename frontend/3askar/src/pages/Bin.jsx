@@ -45,8 +45,8 @@ function Bin() {
   const [activeFile, setActiveFile] = React.useState(null);
 
   const deletedFiles = React.useMemo(
-    () => filterBySource(filteredFiles, "trash"),
-    [filteredFiles, filterBySource]
+    () => filterBySource(undefined, "trash"),
+    [filterBySource]
   );
 
   const sortedFiles = React.useMemo(() => {
@@ -144,7 +144,7 @@ function Bin() {
         Trash
       </Typography>
 
-      <MenuBar />
+      <MenuBar visibleFiles={sortedFiles} />
 
       <Box
         sx={{

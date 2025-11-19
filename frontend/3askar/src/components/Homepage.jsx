@@ -27,9 +27,13 @@ import {
   getSharedFolders,
   getRecentFolders,
   copyFolder,
+  getFolder,
 } from "../api/foldersApi";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useFiles } from "../context/fileContext.jsx";
+import FolderDetailsPanel from "./FolderDetailsPanel";
+import RenameDialog from "./RenameDialog.jsx";
+
 
 function Homepage({ initialView = "MY_DRIVE" }) {
   const { files, loading } = useFiles();
@@ -80,6 +84,16 @@ function Homepage({ initialView = "MY_DRIVE" }) {
   const [selectedFolder, setSelectedFolder] = React.useState(null);
   const folderMenuOpen = Boolean(folderMenuAnchor);
 
+  const [folderDetailsOpen, setFolderDetailsOpen] = React.useState(false);
+  const [folderDetails, setFolderDetails] = React.useState(null);
+  const [folderDetailsLoading, setFolderDetailsLoading] = React.useState(false);
+  const [folderDetailsError, setFolderDetailsError] = React.useState(null);
+
+  const [renameDialogOpen, setRenameDialogOpen] = React.useState(false);
+  const [renameTarget, setRenameTarget] = React.useState(null); // folder we’re renaming
+
+
+
   const handleFolderMenuOpen = (event, folder) => {
     event.stopPropagation?.();
     setFolderMenuAnchor(event.currentTarget);
@@ -90,6 +104,49 @@ function Homepage({ initialView = "MY_DRIVE" }) {
     setFolderMenuAnchor(null);
     setSelectedFolder(null);
   };
+
+  const handleFolderShare = () => {
+  if (!selectedFolder) return;
+  // TODO: replace this with your real ShareDialog logic for folders
+  alert(`Sharing folder: ${selectedFolder.name}`);
+};
+
+const handleFolderDetails = async () => {
+  if (!selectedFolder) return;
+
+  try {
+    setFolderDetailsLoading(true);
+    setFolderDetailsError(null);
+
+    const full = await getFolder(
+      selectedFolder.publicId || selectedFolder._id
+    );
+
+    setFolderDetails(full);
+    setFolderDetailsOpen(true);
+  } catch (err) {
+    console.error("Failed to load folder details", err);
+    setFolderDetailsError(err.message || "Failed to load folder details");
+    setFolderDetailsOpen(true);
+  } finally {
+    setFolderDetailsLoading(false);
+  }
+};
+
+const handleFolderDescriptionUpdated = (updatedFolder) => {
+  setFolderDetails(updatedFolder);
+
+  // also refresh the folders list so the new description/flags show
+  setRootFolders((prev) =>
+    prev.map((f) =>
+      (f._id === updatedFolder._id || f.publicId === updatedFolder.publicId)
+        ? updatedFolder
+        : f
+    )
+  );
+}
+
+
 
   const { folderId } = useParams();
   const navigate = useNavigate();
@@ -219,18 +276,30 @@ function Homepage({ initialView = "MY_DRIVE" }) {
     }
   };
 
-  const handleRenameFolder = async () => {
+  const handleRenameFolder = () => {
     if (!selectedFolder) return;
+    setRenameTarget(selectedFolder);
+    setRenameDialogOpen(true);
+  };
 
-    const newName = window.prompt("New folder name:", selectedFolder.name);
-    if (!newName || !newName.trim()) return;
+  const handleFolderRenameSubmit = async (newName) => {
+    if (!renameTarget) {
+      setRenameDialogOpen(false);
+      return;
+    }
+
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      setRenameDialogOpen(false);
+      return;
+    }
 
     try {
       setFoldersLoading(true);
       setFoldersError(null);
 
-      await updateFolder(selectedFolder.publicId || selectedFolder._id, {
-        name: newName.trim(),
+      await updateFolder(renameTarget.publicId || renameTarget._id, {
+        name: trimmed,
       });
 
       await loadFoldersForCurrentView();
@@ -239,9 +308,13 @@ function Homepage({ initialView = "MY_DRIVE" }) {
       setFoldersError(err.message || "Failed to rename folder");
     } finally {
       setFoldersLoading(false);
+      setRenameDialogOpen(false);
+      setRenameTarget(null);
       handleFolderMenuClose();
     }
   };
+
+
 
   const handleTrashFolder = async () => {
     if (!selectedFolder) return;
@@ -848,7 +921,11 @@ function Homepage({ initialView = "MY_DRIVE" }) {
         onCopy={handleCopyFolder}
         isStarred={selectedFolder?.isStarred}
         isInTrash={currentView === "TRASH" || selectedFolder?.isDeleted}
+        onFolderShare={() => { /* we'll wire real sharing later */ }}
+        onFolderDetails={handleFolderDetails}
       />
+
+
 
       <FileKebabMenu
         anchorEl={menuAnchorEl}
@@ -857,6 +934,25 @@ function Homepage({ initialView = "MY_DRIVE" }) {
         onClose={handleMenuClose}
         selectedFile={selectedFile}
       />
+
+      <FolderDetailsPanel
+        open={folderDetailsOpen}
+        onClose={() => setFolderDetailsOpen(false)}
+        folder={folderDetails || selectedFolder}
+        onDescriptionUpdated={handleFolderDescriptionUpdated}
+      />
+
+      <RenameDialog
+        open={renameDialogOpen}
+        file={renameTarget}
+        onClose={() => {
+          setRenameDialogOpen(false);
+          setRenameTarget(null);
+        }}
+        onSubmit={handleFolderRenameSubmit}
+      />
+
+
     </Box>
   );
 }

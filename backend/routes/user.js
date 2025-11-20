@@ -4,7 +4,15 @@ const User = require("../models/User");
 
 router.get("/profile", (req, res) => {
   if (!req.user) return res.status(401).json({ message: "Not logged in" });
-  const nonSensitiveData = {firstName: req.user.firstName,lastName: req.user.lastName, picture: req.user.picture, email: req.user.email};
+  const nonSensitiveData = {
+    _id: req.user._id,
+    firstName: req.user.firstName,
+    lastName: req.user.lastName,
+    picture: req.user.picture,
+    email: req.user.email,
+    storageLimit: req.user.storageLimit ?? 0,
+    storageUsed: req.user.storageUsed ?? 0,
+  };
   res.json(nonSensitiveData);
 });
 

@@ -12,7 +12,7 @@ const userSchema = new mongoose.Schema({
   storageUsed: {type: Number, default: 0,}, // later used by calling updateStorage(userId, file.length, "add" or "remove")
   storageLimit: {
     type: Number,
-    default: 15 * 1024 * 1024 * 1024, // 15GB default quota
+    default: 500 * 1024 * 1024, // 500MB default quota
   },
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },

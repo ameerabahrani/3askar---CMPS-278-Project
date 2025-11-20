@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useFiles } from "../context/fileContext.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 import {
     Box, 
@@ -48,17 +49,15 @@ const Sidebar = () => {
   const [isResizing, setIsResizing] = useState(false);
   const [active, setActive] = useState("home"); // if any element in sidebar is selected 
   const { uploadFiles, uploading } = useFiles();
+  const { user } = useAuth() || {};
   const MIN_WIDTH = 200;
   const MAX_WIDTH = 280;
-  const user = {
-  storageLimit: 15 * 1024 * 1024 * 1024, // 10GB fake
-  storageUsed: 2 * 1024 * 1024 * 1024,  // 2GB fake
-};
 
-const [openDrive, setOpenDrive] = useState(false);
-const [openComputers, setOpenComputers] = useState(false);
 
-const connectedDevices = []; // no devices for now (placeholder)
+  const [openDrive, setOpenDrive] = useState(false);
+  const [openComputers, setOpenComputers] = useState(false);
+
+  const connectedDevices = []; // no devices for now (placeholder)
 
 
     // Sidebar Resizing line
@@ -91,8 +90,8 @@ const connectedDevices = []; // no devices for now (placeholder)
     }, [isResizing, MIN_WIDTH, MAX_WIDTH]);
 
   
-    const storageLimit = user?.storageLimit || 0;
-    const storageUsed = user?.storageUsed || 0;
+    const storageLimit = Number(user?.storageLimit) || 0;
+    const storageUsed = Number(user?.storageUsed) || 0;
     const usedStorage =
       storageLimit > 0
         ? Math.min(
@@ -102,7 +101,7 @@ const connectedDevices = []; // no devices for now (placeholder)
         : 0;
     const storageSummary =
       storageLimit > 0
-        ? `${(storageUsed / (1024 ** 3)).toFixed(2)} GB of ${(storageLimit / (1024 ** 3)).toFixed(0)} GB used`
+        ? `${(storageUsed / 1024 ** 2).toFixed(2)} MB of ${(storageLimit / 1024 ** 2).toFixed(0)} MB used`
         : "Storage info unavailable";
 
     // New button menu state and refs for uploads
@@ -244,35 +243,59 @@ const connectedDevices = []; // no devices for now (placeholder)
 
             <List>
                 {sideItems.map((item) => {
+                    const isStorageItem = item.id === "storage";
+                    const isActiveItem = active === item.id;
                     if(item.type === "spacer"){
                         return <Box key={item.id} sx={{height:16}} />
                     }
+
+                    const baseSx = {
+                        alignSelf: 'flex-start',
+                        width: 'fit-content',
+                        borderRadius: '999px', 
+                        ml: 0.5,
+                        mr: 1,
+                        px: 1.25,
+                        fontSize: 14,
+                        display: 'flex',
+                        alignItems: 'center',
+                        pr: 1.25,
+                    };
+
+                    const interactiveSx = {
+                        ...baseSx,
+                        color: isActiveItem ? '#0b57d0' : '#202124',
+                        bgcolor: isActiveItem ? '#c2e7ff' : 'transparent',
+                        pr: isActiveItem ? 3 : 1.25,
+                        "&:hover": {
+                            bgcolor: isActiveItem ? '#c2e7ff' : '#f1f3f4',
+                        },
+                    };
+
+                    const storageSx = {
+                        ...baseSx,
+                        color: '#202124',
+                        bgcolor: 'transparent',
+                        cursor: 'default',
+                    };
+
+                    const Container = isStorageItem ? Box : ListItemButton;
+                    const containerProps = {
+                        sx: isStorageItem ? storageSx : interactiveSx,
+                        onClick: isStorageItem
+                            ? undefined
+                            : () => {
+                                setActive(item.id);
+                                if(item.path) navigate(item.path);
+                            },
+                    };
 
                     return (
                          <Box key={item.id} sx={{
                         px: 0.8,
                     }}>
-                       <ListItemButton
-                        onClick={()=> {
-                          setActive(item.id);
-                          if(item.path) navigate(item.path);
-                        }}
-                          sx={{
-
-                            alignSelf: 'flex-start',
-                            width: 'fit-content',
-                            borderRadius: '999px', 
-                            ml: 0.5,
-                            mr: 1, 
-                            px: 1.25,
-                            fontSize: 14,
-                            color: active === item.id ? '#0b57d0' : '#202124',
-                            bgcolor: active === item.id ? '#c2e7ff' : 'transparent', 
-                            pr: active === item.id ? 3 : 1.25,
-                            "&:hover": {
-                                bgcolor: active === item.id ? '#c2e7ff' : '#f1f3f4',
-                            },
-                        }}  
+                       <Container
+                        {...containerProps}
                         >
                         {/* Left arrow toggle for expandable items */}
                         <Box
@@ -306,7 +329,7 @@ const connectedDevices = []; // no devices for now (placeholder)
                                 fontWeight: active === item.id ? 540: 400,
                             }} 
                         />
-                    </ListItemButton>
+                        </Container>
                     {/* Collapsible submenu for Drive */}
                     {item.id === 'drive' && (
                       <Collapse in={openDrive} timeout="auto" unmountOnExit>
@@ -416,7 +439,7 @@ const connectedDevices = []; // no devices for now (placeholder)
           onMouseDown={handleMouseDown}
         />
     </Box>
-    );
+  );
 
 
         

@@ -158,6 +158,7 @@ export const FileProvider = ({ children }) => {
 
   const filesRef = useRef([]);
   const trashRef = useRef([]);
+  const sharedRef = useRef([]);
 
   const { user } = useAuth() || {};
   const currentUserId = user?._id ? user._id.toString() : null;
@@ -171,6 +172,10 @@ export const FileProvider = ({ children }) => {
   useEffect(() => {
     trashRef.current = trashFiles;
   }, [trashFiles]);
+
+  useEffect(() => {
+    sharedRef.current = sharedFiles;
+  }, [sharedFiles]);
 
   const fetchCollections = useCallback(async () => {
     setLoading(true);
@@ -222,32 +227,41 @@ export const FileProvider = ({ children }) => {
     fetchCollections();
   }, [fetchCollections]);
 
-  const toggleStar = useCallback(async (id) => {
-    const existing = filesRef.current.find((file) => file.id === id);
-    if (!existing) return;
+  const toggleStar = useCallback(
+    async (id) => {
+      setError(null);
+      const existing =
+        filesRef.current.find((file) => file.id === id) ||
+        sharedRef.current.find((file) => file.id === id);
+      if (!existing) return;
 
-    const nextState = !existing.isStarred;
+      const nextState = !existing.isStarred;
+      const applyStarState = (collection, value) =>
+        collection.map((file) =>
+          file.id === id ? { ...file, isStarred: value } : file
+        );
 
-    setFiles((prev) =>
-      prev.map((file) =>
-        file.id === id ? { ...file, isStarred: nextState } : file
-      )
-    );
+      setFiles((prev) => applyStarState(prev, nextState));
+      setSharedFiles((prev) => applyStarState(prev, nextState));
 
-    if (USE_MOCK_DATA) return;
+      const ownerId =
+        existing.ownerId?.toString() ??
+        (existing.owner ? existing.owner.toString() : null);
+      if (!ownerId || ownerId !== currentUserId) return;
 
-    try {
-      await apiClient.patch(`/files/${id}/star`, { isStarred: nextState });
-    } catch (err) {
-      setFiles((prev) =>
-        prev.map((file) =>
-          file.id === id ? { ...file, isStarred: existing.isStarred } : file
-        )
-      );
+      if (USE_MOCK_DATA) return;
 
-      setError("Unable to update star. Try again.");
-    }
-  }, []);
+      try {
+        await apiClient.patch(`/files/${id}/star`, { isStarred: nextState });
+      } catch (err) {
+        setFiles((prev) => applyStarState(prev, existing.isStarred));
+        setSharedFiles((prev) => applyStarState(prev, existing.isStarred));
+
+        setError("Unable to update star. Try again.");
+      }
+    },
+    [currentUserId]
+  );
 
   const moveToTrash = useCallback(async (id) => {
     const existing = filesRef.current.find((file) => file.id === id);
@@ -324,7 +338,7 @@ export const FileProvider = ({ children }) => {
       if (USE_MOCK_DATA) return;
 
       try {
-        await apiClient.patch(`/files/${id}/rename`, { newName: trimmed });
+        await apiClient.patch(`/files/${id}/rename`, { newName });
       } catch {
         setFiles((prev) => applyRename(prev, existing.name));
         setSharedFiles((prev) => applyRename(prev, existing.name));

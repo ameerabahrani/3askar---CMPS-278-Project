@@ -57,32 +57,54 @@ function ShareDialog({ open, file, onClose }) {
 
   // 1. Find user by email before sharing
   const handleAddCollaborator = async () => {
-    try {
-      const res = await apiClient.get(`/user/find?email=${email.trim()}`);
+    const raw = (email || "").trim();
+    if (!raw) return;
+    const normalized = raw.toLowerCase();
 
-      const user = res.data.user;
+    try {
+      // Find user by email (normalize casing)
+      const res = await apiClient.get(
+        `/user/find?email=${encodeURIComponent(normalized)}`
+      );
+
+      const user = res.data?.user;
       if (!user) {
         alert("This email does not belong to a registered 3askar user.");
         return;
       }
 
-      // Share with backend
-      await apiClient.patch(`/files/${file.id}/share`, {
-        userId: user._id,
-        permission,
-      });
+      // Attempt to share. Backend requires the current user to be the owner;
+      // if not, the route will return 404 (File not found)
+      try {
+        await apiClient.patch(`/files/${file.id}/share`, {
+          userId: user._id,
+          permission,
+        });
 
-      // Update UI
-      setCollaborators((prev) => [
-        ...prev,
-        { user, permission }
-      ]);
-
-      setEmail("");
-      setPermission("read");
-
+        // Update UI
+        setCollaborators((prev) => [...prev, { user, permission }]);
+        setEmail("");
+        setPermission("read");
+      } catch (shareErr) {
+        const status = shareErr?.response?.status;
+        const msg = shareErr?.response?.data?.message || "";
+        if (status === 404 && /file not found/i.test(msg)) {
+          alert("Unable to share: you must be the file owner to add collaborators.");
+        } else if (status === 400) {
+          alert(msg || "Invalid share request.");
+        } else {
+          console.error("Share error:", shareErr);
+          alert(msg || "Failed to share file.");
+        }
+      }
     } catch (err) {
-      alert("User not found.");
+      const status = err?.response?.status;
+      if (status === 404) {
+        alert("This email does not belong to a registered 3askar user.");
+      } else {
+        console.error("Find user error:", err);
+        alert("Unable to verify user right now.");
+      }
     }
   };
 

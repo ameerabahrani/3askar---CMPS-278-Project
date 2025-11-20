@@ -1,8 +1,9 @@
 import React from "react";
-import { Box, Typography, IconButton, Menu, MenuItem } from "@mui/material";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { Box, Typography, Menu, MenuItem } from "@mui/material";
 import MenuBar from "../components/MenuBar";
 import { useFiles } from "../context/fileContext.jsx";
+import HoverActions from "../components/HoverActions.jsx";
+import ShareDialog from "../components/ShareDialog.jsx";
 
 const DEFAULT_FILE_ICON =
   "https://www.gstatic.com/images/icons/material/system/2x/insert_drive_file_black_24dp.png";
@@ -31,18 +32,21 @@ const getSortValue = (file, field) => {
 
 function Bin() {
   const {
-    filteredFiles,
     loading,
     error,
     restoreFromBin,
     deleteForever,
     filterBySource,
+    toggleStar,
+    downloadFile,
   } = useFiles();
 
   const [sortField, setSortField] = React.useState("name");
   const [sortDirection, setSortDirection] = React.useState("asc");
   const [menuEl, setMenuEl] = React.useState(null);
   const [activeFile, setActiveFile] = React.useState(null);
+  const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
+  const [fileToShare, setFileToShare] = React.useState(null);
 
   const deletedFiles = React.useMemo(
     () => filterBySource(undefined, "trash"),
@@ -78,6 +82,7 @@ function Bin() {
   }, [deletedFiles, sortField, sortDirection]);
 
   const handleOpenMenu = (event, file) => {
+    event.stopPropagation?.();
     setMenuEl(event.currentTarget);
     setActiveFile(file);
   };
@@ -109,6 +114,17 @@ function Bin() {
       setSortDirection("asc");
     }
   };
+
+  const openShareDialog = (file) => {
+    setFileToShare(file);
+    setShareDialogOpen(true);
+  };
+
+  const closeShareDialog = () => {
+    setShareDialogOpen(false);
+    setFileToShare(null);
+  };
+
 
   const renderSortIndicator = (field) => {
     if (sortField !== field) return "";
@@ -184,52 +200,16 @@ function Bin() {
         </Typography>
       ) : (
         sortedFiles.map((file) => (
-          <Box
+          <HoverActions
             key={file.id}
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              px: 2,
-              py: 1.5,
-              borderBottom: "1px solid #f1f3f4",
-              "&:hover": { backgroundColor: "#f8f9fa" },
-            }}
-          >
-            <Box
-              sx={{
-                flex: 4,
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-              }}
-            >
-              <img
-                src={file.icon || DEFAULT_FILE_ICON}
-                width={20}
-                height={20}
-                alt="file icon"
-              />
-              {file.name}
-            </Box>
-
-            <Box sx={{ flex: 3, color: "#5f6368" }}>
-              {file.owner || "Unknown"}
-            </Box>
-
-            <Box sx={{ flex: 2, color: "#5f6368" }}>
-              {file.location || "My Drive"}
-            </Box>
-
-            <Box sx={{ flex: 1, color: "#5f6368" }}>
-              {formatDate(
-                file.deletedAt || file.lastAccessedAt || file.uploadedAt
-              )}
-            </Box>
-
-            <IconButton onClick={(event) => handleOpenMenu(event, file)}>
-              <MoreVertIcon sx={{ color: "#5f6368" }} />
-            </IconButton>
-          </Box>
+            file={file}
+            toggleStar={toggleStar}
+            openShareDialog={openShareDialog}
+            openMenu={handleOpenMenu}
+            downloadFile={downloadFile}
+            formatDate={formatDate}
+            showRename={false}
+          />
         ))
       )}
 
@@ -237,6 +217,11 @@ function Bin() {
         <MenuItem onClick={handleRestore}>Restore</MenuItem>
         <MenuItem onClick={handleDeleteForever}>Delete forever</MenuItem>
       </Menu>
+      <ShareDialog
+        open={shareDialogOpen}
+        file={fileToShare}
+        onClose={closeShareDialog}
+      />
     </Box>
   );
 }

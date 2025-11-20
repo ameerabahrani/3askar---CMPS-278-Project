@@ -115,7 +115,7 @@ const normalizeFile = (file) => {
   const ownerObject =
     typeof file.owner === "object" && file.owner !== null ? file.owner : null;
 
-  return {
+    return {
     id: file._id?.toString() ?? file.id,
     gridFsId: file.gridFsId,
     name: file.filename || file.originalName || "Untitled",
@@ -140,8 +140,10 @@ const normalizeFile = (file) => {
     type: file.type,
     description: file.description || "",
     path: Array.isArray(file.path) ? file.path : [],
+    folderId: file.folderId ? file.folderId.toString() : null,  
     icon: resolveIcon(file.filename || file.originalName, file.type),
   };
+
 };
 
 export const FileProvider = ({ children }) => {
@@ -459,12 +461,15 @@ export const FileProvider = ({ children }) => {
             await fetchCollections();
           }
         }
-      } catch {
+      } catch (err) {
+        console.error("Upload failed:", err);
         setError("Upload failed.");
         throw err;
       } finally {
         setUploading(false);
       }
+
+
 
       return uploaded;
     },

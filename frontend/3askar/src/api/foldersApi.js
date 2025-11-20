@@ -183,3 +183,9 @@ export async function copyFolder(folderId, { name, parentFolder } = {}) {
 
   return handleResponse(res);
 }
+
+export function downloadFolderZip(folderId) {
+  const url = `${API_BASE_URL}/folders/${folderId}/download`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+

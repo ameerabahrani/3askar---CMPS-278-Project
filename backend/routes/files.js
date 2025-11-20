@@ -18,9 +18,27 @@ const { read } = require('fs');
 const updateStorage = require('../utils/storage');
 const File = require("../models/File");
 const User = require("../models/User");
+const Folder = require("../models/Folder");
+
 
 const OWNER_FIELDS = "name email picture";
 const SHARED_WITH_POPULATE = { path: "sharedWith.user", select: OWNER_FIELDS };
+
+async function findFolderByAnyId(id) {
+  if (!id) return null;
+
+  // Try publicId first
+  let folder = await Folder.findOne({ publicId: id });
+  if (folder) return folder;
+
+  // Fallback: try Mongo ObjectId
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    folder = await Folder.findById(id);
+  }
+
+  return folder;
+}
+
 
 let gridfsBucket; 
 // once mongoose connection is open, initialize GridFS bucket to make sure it's ready before handling requests
@@ -260,6 +278,17 @@ router.post("/saveMetadata", async (req, res) => {
 
         }
 
+        // resolve folderId (can be publicId or _id coming from frontend)
+        let folderObjectId = null;
+        if (folderId) {
+        const folderDoc = await findFolderByAnyId(folderId);
+        if (!folderDoc) {
+            return res.status(400).json({ message: "Invalid folderId" });
+        }
+        folderObjectId = folderDoc._id;
+        }
+
+
         //3. create file metadata document
         const newFile = new File({
             gridFsId: objectId,
@@ -268,7 +297,7 @@ router.post("/saveMetadata", async (req, res) => {
             owner: req.user._id, // temporary user
             size,
             type,
-            folderId: folderId || null,
+            folderId: folderObjectId,
             location: location || "My Drive",
             path: path || [],
             isStarred: isStarred || false,
@@ -585,22 +614,39 @@ router.get("/list/mydrive", async (req, res) => {
 
 //Get folder contents
 router.get("/list/folder/:folderId", async (req, res) => {
-    if (!ensureGridFSReady(res)) return;
-    try {
-        const files = await File.find({
-            owner: req.user._id,
-            isDeleted: false,
-            folderId: req.params.folderId
-        })
-        .populate("owner", OWNER_FIELDS)
-        .populate(SHARED_WITH_POPULATE);
+  if (!ensureGridFSReady(res)) return;
+  try {
+    const { folderId } = req.params;
 
-        res.json(files);
-    } catch (err) {
-        console.error("Error getting folder files:", err);
-        res.status(500).json({ message: "Error fetching files" });
+    let folderObjectId = null;
+
+    if (mongoose.Types.ObjectId.isValid(folderId)) {
+      folderObjectId = new ObjectId(folderId);
+    } else {
+      const folderDoc = await Folder.findOne({ publicId: folderId });
+      if (!folderDoc) {
+        return res.status(404).json({ message: "Folder not found" });
+      }
+      folderObjectId = folderDoc._id;
     }
+
+    const files = await File.find({
+      owner: req.user._id,
+      isDeleted: false,
+      folderId: folderObjectId,
+    })
+      
+        .populate("owner", OWNER_FIELDS)
+        .populate(SHARED_WITH_POPULATE)
+      .sort({ filename: 1 });
+
+    res.json(files);
+  } catch (err) {
+    console.error("Error getting folder files:", err);
+    res.status(500).json({ message: "Error fetching files" });
+  }
 });
+
 
 //Get starred files
 router.get("/list/starred", async (req, res) => {

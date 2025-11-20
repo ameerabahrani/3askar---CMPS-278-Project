@@ -4,6 +4,7 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import StarIcon from "@mui/icons-material/Star";
 import MenuBar from "../components/MenuBar";
 import { useFiles } from "../context/fileContext.jsx";
+import FileKebabMenu from "../components/FileKebabMenu.jsx";
 
 const formatDate = (value) => {
   if (!value) return "";
@@ -18,6 +19,41 @@ function Starred() {
   const [sortField, setSortField] = React.useState("name");
   const [sortDirection, setSortDirection] = React.useState("asc");
   const [menuEl, setMenuEl] = React.useState(null);
+
+  const [menuAnchorEl, setMenuAnchorEl] = React.useState(null);
+  const [menuPosition, setMenuPosition] = React.useState(null);
+  const [selectedFile, setSelectedFile] = React.useState(null);
+
+  const menuOpen = Boolean(menuAnchorEl) || Boolean(menuPosition);
+
+  const anchorPosition = menuPosition
+    ? { top: menuPosition.mouseY, left: menuPosition.mouseX }
+    : undefined;
+
+  const handleMenuButtonClick = (event, file) => {
+    event.stopPropagation?.();
+    setSelectedFile(file);
+    setMenuPosition(null);
+    setMenuAnchorEl(event.currentTarget);
+  };
+
+  const handleContextMenu = (event, file) => {
+    event.preventDefault();
+    event.stopPropagation?.();
+    setSelectedFile(file);
+    setMenuAnchorEl(null);
+    setMenuPosition({
+      mouseX: event.clientX + 2,
+      mouseY: event.clientY - 6,
+    });
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchorEl(null);
+    setMenuPosition(null);
+    setSelectedFile(null);
+  };
+
 
   const starredFiles = React.useMemo(
     () => filterBySource(undefined, "starred"),
@@ -120,6 +156,7 @@ function Starred() {
       {sortedFiles.map((file) => (
         <Box
           key={file.id}
+          onContextMenu={(e) => handleContextMenu(e, file)}
           sx={{
             display: "flex",
             alignItems: "center",
@@ -143,16 +180,20 @@ function Starred() {
             {formatDate(file.lastAccessedAt || file.uploadedAt)}
           </Box>
 
-          <IconButton onClick={handleOpenMenu}>
+          <IconButton onClick={(event) => handleMenuButtonClick(event, file)}>
             <MoreVertIcon sx={{ color: "#5f6368" }} />
           </IconButton>
+
         </Box>
       ))}
-
-      <Menu anchorEl={menuEl} open={Boolean(menuEl)} onClose={handleCloseMenu}>
-        <MenuItem onClick={handleCloseMenu}>Open</MenuItem>
-        <MenuItem onClick={handleCloseMenu}>Remove from Starred</MenuItem>
-      </Menu>
+     
+      <FileKebabMenu
+        anchorEl={menuAnchorEl}
+        anchorPosition={anchorPosition}
+        open={menuOpen}
+        onClose={handleMenuClose}
+        selectedFile={selectedFile}
+      />
     </Box>
   );
 }

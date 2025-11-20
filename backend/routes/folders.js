@@ -7,6 +7,10 @@ const { v4: uuidv4 } = require("uuid");  // for generating publicId when missing
 
 const router = express.Router();
 
+const File = require("../models/File");
+const archiver = require("archiver");
+
+
 function isSameId(a, b) {
   if (!a || !b) return false;
   return a.toString() === b.toString();
@@ -73,6 +77,23 @@ async function findFolderByAnyId(id) {
 
   return null;
 }
+
+let gridfsBucket;
+mongoose.connection.once("open", () => {
+  gridfsBucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+    bucketName: "files",
+  });
+  console.log("✅ GridFS Bucket initialized in folders route");
+});
+
+function ensureGridFSReady(res) {
+  if (!gridfsBucket) {
+    res.status(503).json({ message: "File storage not initialized" });
+    return false;
+  }
+  return true;
+}
+
 
 
 // make sure a folder has a publicId; if missing, generate and save once
@@ -404,31 +425,6 @@ router.get("/search", ensureAuth, async (req, res) => {
   }
 });
 
-
-// Get a single folder by ID (for info panel, renaming dialogs, checking permissions on single folder ) hala2 its not needed but later it will be so I did it now
-router.get("/:id", ensureAuth, async (req, res) => {
-  try {
-    const folder = await findFolderByAnyId(req.params.id);
-
-    if (!folder) {
-      return res.status(404).json({ message: "Folder not found" });
-    }
-
-    // Must have permission to read this folder
-    if (!canReadFolder(folder, req.user._id)) {
-      return res
-        .status(403)
-        .json({ message: "You do not have permission to view this folder" });
-    }
-
-    res.json(folder);
-  } catch (error) {
-    console.error("Error fetching folder by ID:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-
 // Breadcrumb for a folder
 router.get("/:id/breadcrumb", ensureAuth, async (req, res) => {
   try {
@@ -604,6 +600,113 @@ router.post("/:id/copy", ensureAuth, async (req, res) => {
   }
 });
 
+router.get("/:id", ensureAuth, async (req, res) => {
+  try {
+    const folder = await findFolderByAnyId(req.params.id);
+
+    if (!folder) {
+      return res.status(404).json({ message: "Folder not found" });
+    }
+
+    // Must have permission to read this folder
+    if (!canReadFolder(folder, req.user._id)) {
+      return res
+        .status(403)
+        .json({ message: "You do not have permission to view this folder" });
+    }
+
+    res.json(folder);
+  } catch (error) {
+    console.error("Error fetching folder by ID:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Download a whole folder (and its subfolders) as a ZIP
+router.get("/:id/download", ensureAuth, async (req, res) => {
+  if (!ensureGridFSReady(res)) return;
+
+  try {
+    const userId = req.user._id;
+    const folder = await findFolderByAnyId(req.params.id);
+
+    if (!folder) {
+      return res.status(404).json({ message: "Folder not found" });
+    }
+
+    if (!canReadFolder(folder, userId)) {
+      return res
+        .status(403)
+        .json({ message: "You do not have permission to download this folder" });
+    }
+
+    // Collect all files in the folder tree
+    const items = [];
+
+    async function collectFolderContents(folderDoc, prefix) {
+      const folderPath = prefix ? `${prefix}/${folderDoc.name}` : folderDoc.name;
+
+      const files = await File.find({
+        owner: userId,
+        isDeleted: false,
+        folderId: folderDoc._id,
+      });
+
+      for (const f of files) {
+        const baseName = f.filename || f.originalName || "file";
+        items.push({
+          gridFsId: f.gridFsId,
+          zipPath: `${folderPath}/${baseName}`,
+        });
+      }
+
+      const children = await Folder.find({
+        parentFolder: folderDoc._id,
+        isDeleted: false,
+      });
+
+      for (const child of children) {
+        await collectFolderContents(child, folderPath);
+      }
+    }
+
+    await collectFolderContents(folder, "");
+
+    if (items.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "This folder has no files to download" });
+    }
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+
+    archive.on("error", (err) => {
+      console.error("Archive error:", err);
+      if (!res.headersSent) {
+        res.status(500).end();
+      }
+    });
+
+    res.set({
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${folder.name}.zip"`,
+    });
+
+    archive.pipe(res);
+
+    for (const item of items) {
+      const stream = gridfsBucket.openDownloadStream(item.gridFsId);
+      archive.append(stream, { name: item.zipPath });
+    }
+
+    archive.finalize();
+  } catch (error) {
+    console.error("Error downloading folder:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ message: "Server error while downloading folder" });
+    }
+  }
+});
 
 
 module.exports = router;

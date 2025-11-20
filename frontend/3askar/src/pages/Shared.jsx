@@ -3,6 +3,7 @@ import { Box, Typography, IconButton, Menu, MenuItem } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import MenuBar from "../components/MenuBar";
 import { useFiles } from "../context/fileContext.jsx";
+import FileKebabMenu from "../components/FileKebabMenu.jsx";
 
 const DEFAULT_FILE_ICON =
   "https://www.gstatic.com/images/icons/material/system/2x/insert_drive_file_black_24dp.png";
@@ -34,6 +35,41 @@ function Shared() {
   const [sortDirection, setSortDirection] = React.useState("asc");
   const [menuEl, setMenuEl] = React.useState(null);
   const [activeFile, setActiveFile] = React.useState(null);
+
+  const [menuAnchorEl, setMenuAnchorEl] = React.useState(null);
+  const [menuPosition, setMenuPosition] = React.useState(null);
+  const [selectedFile, setSelectedFile] = React.useState(null);
+
+  const menuOpen = Boolean(menuAnchorEl) || Boolean(menuPosition);
+
+  const anchorPosition = menuPosition
+    ? { top: menuPosition.mouseY, left: menuPosition.mouseX }
+    : undefined;
+
+  const handleMenuButtonClick = (event, file) => {
+    event.stopPropagation?.();
+    setSelectedFile(file);
+    setMenuPosition(null);
+    setMenuAnchorEl(event.currentTarget);
+  };
+
+  const handleContextMenu = (event, file) => {
+    event.preventDefault();
+    event.stopPropagation?.();
+    setSelectedFile(file);
+    setMenuAnchorEl(null);
+    setMenuPosition({
+      mouseX: event.clientX + 2,
+      mouseY: event.clientY - 6,
+    });
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchorEl(null);
+    setMenuPosition(null);
+    setSelectedFile(null);
+  };
+
 
   const sharedFiles = React.useMemo(
     () => filterBySource(undefined, "shared"),
@@ -155,6 +191,7 @@ function Shared() {
         sortedFiles.map((file) => (
           <Box
             key={file.id}
+            onContextMenu={(e) => handleContextMenu(e, file)}
             sx={{
               display: "flex",
               alignItems: "center",
@@ -182,7 +219,7 @@ function Shared() {
               {formatDate(file.lastAccessedAt || file.uploadedAt)}
             </Box>
 
-            <IconButton onClick={(event) => handleOpenMenu(event, file)}>
+            <IconButton onClick={(event) => handleMenuButtonClick(event, file)}>
               <MoreVertIcon sx={{ color: "#5f6368" }} />
             </IconButton>
           </Box>
@@ -190,9 +227,13 @@ function Shared() {
       )}
 
       <Menu anchorEl={menuEl} open={Boolean(menuEl)} onClose={handleCloseMenu}>
-        <MenuItem onClick={handleCloseMenu}>Open</MenuItem>
-        <MenuItem onClick={handleCloseMenu}>Download</MenuItem>
-        <MenuItem onClick={handleCloseMenu}>Remove</MenuItem>
+        <FileKebabMenu
+          anchorEl={menuAnchorEl}
+          anchorPosition={anchorPosition}
+          open={menuOpen}
+          onClose={handleMenuClose}
+          selectedFile={selectedFile}
+        />
       </Menu>
     </Box>
   );

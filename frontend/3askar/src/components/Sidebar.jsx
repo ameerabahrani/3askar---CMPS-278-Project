@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { useFiles } from "../context/fileContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -41,10 +41,16 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import CreateNewFolderOutlinedIcon from '@mui/icons-material/CreateNewFolderOutlined';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import DriveFolderUploadOutlinedIcon from '@mui/icons-material/DriveFolderUploadOutlined';
+import NewFolderDialog from "../context/NewFolderDialog.jsx";
+import { createFolder, getFolder } from "../api/foldersApi";
+
+
 
 
 const Sidebar = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { folderId } = useParams();
   const [width, setWidth] = useState(240);
   const [isResizing, setIsResizing] = useState(false);
   const [active, setActive] = useState("home"); // if any element in sidebar is selected 
@@ -58,6 +64,9 @@ const Sidebar = () => {
   const [openComputers, setOpenComputers] = useState(false);
 
   const connectedDevices = []; // no devices for now (placeholder)
+
+const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
+
 
 
     // Sidebar Resizing line
@@ -113,30 +122,183 @@ const Sidebar = () => {
     const handleCloseNewMenu = () => setNewMenuEl(null);
 
     const handleCreateFolder = () => {
-      // TODO: replace with actual create-folder action in backend
-      console.log("Create new folder clicked");
+      // just open the dialog instead of using window.prompt
+      setNewFolderDialogOpen(true);
     };
+
+
+
+    const handleSidebarCreateFolderSubmit = async (name) => {
+      if (!name || !name.trim()) {
+        setNewFolderDialogOpen(false);
+        return;
+      }
+
+      // figure out which folder we’re in from the URL
+      let parentFolder = null;
+
+      // when you are inside /folders/:folderId, use that as parent
+      if (location.pathname.startsWith("/folders/") && folderId) {
+        parentFolder = folderId; // this is the publicId you navigated with
+      }
+
+      try {
+        await createFolder({
+          name: name.trim(),
+          parentFolder, // null = root, id = current folder
+        });
+
+        // optional: reload or navigate so new folder shows immediately
+        // navigate(0);
+      } catch (err) {
+        console.error("Failed to create folder from sidebar:", err);
+        alert(err.message || "Failed to create folder");
+      } finally {
+        setNewFolderDialogOpen(false);
+      }
+    };
+
 
     const triggerFileUpload = () => fileInputRef.current?.click();
     const triggerFolderUpload = () => folderInputRef.current?.click();
 
-    const handleFilesSelected = async (e) => {
-      const files = Array.from(e.target.files || []);
-      if (!files.length) return;
-      try {
-        await uploadFiles(files);
-      } catch (err) {
-        console.error("Upload failed:", err);
-      } finally {
-        e.target.value = ""; // reset so same file selection retriggers
-      }
+    const getCurrentFolderOptions = () => {
+      // default: root My Drive
+      const inFolderView =
+        location.pathname.startsWith("/folders/") && folderId;
+
+      return {
+        folderId: inFolderView ? folderId : null,  // publicId; backend resolves it
+        location: "My Drive",
+        // you can later add path here if you want breadcrumb paths
+      };
     };
 
-    const handleFolderSelected = (e) => {
-      const files = Array.from(e.target.files || []);
-      console.log("Folder upload selection:", files);
+  const resolveCurrentFolderForUploads = async () => {
+    let parentFolderId = null;
+    let pathArray = [];
+
+    // If we are inside /folders/:folderId → upload into that folder
+    if (location.pathname.startsWith("/folders/") && folderId) {
+      try {
+        const folder = await getFolder(folderId); // accepts publicId or _id
+
+        parentFolderId = folder._id;
+
+        if (folder.path) {
+          pathArray = folder.path.split("/").filter(Boolean);
+        } else if (folder.name) {
+          pathArray = [folder.name];
+        }
+      } catch (err) {
+        console.error("Could not resolve current folder; uploading to root:", err);
+      }
+    }
+
+    return { parentFolderId, pathArray };
+  };
+
+
+
+  const handleFilesSelected = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    try {
+      const { parentFolderId, pathArray } =
+        await resolveCurrentFolderForUploads();
+
+      await uploadFiles(files, {
+        folderId: parentFolderId || null, // null = My Drive root
+        location: "My Drive",
+        path: pathArray,
+      });
+    } catch (err) {
+      console.error("Upload failed:", err);
+      alert(err.message || "Upload failed");
+    } finally {
+      e.target.value = ""; // reset so selecting same file works again
+    }
+  };
+
+
+
+
+  const handleFolderSelected = async (e) => {
+    const fileList = Array.from(e.target.files || []);
+    if (!fileList.length) return;
+
+    try {
+      const { parentFolderId, pathArray: basePath } =
+        await resolveCurrentFolderForUploads();
+
+      // cache: relPath ("Top/Sub") -> { folderId, pathArray }
+      const folderCache = new Map();
+      // empty path = "current view" (root or current folder)
+      folderCache.set("", {
+        folderId: parentFolderId || null,
+        pathArray: basePath || [],
+      });
+
+      const ensureFolderForPath = async (relPathRaw) => {
+        const relPath = (relPathRaw || "").replace(/\\/g, "/");
+
+        if (!relPath || relPath === ".") {
+          return folderCache.get("");
+        }
+
+        if (folderCache.has(relPath)) {
+          return folderCache.get(relPath);
+        }
+
+        const segments = relPath.split("/").filter(Boolean);
+        const parentRel = segments.slice(0, -1).join("/");
+        const folderName = segments[segments.length - 1];
+
+        // ensure parent exists first
+        const parentInfo = await ensureFolderForPath(parentRel);
+
+        const created = await createFolder({
+          name: folderName,
+          // createFolder accepts either publicId or _id; we pass _id
+          parentFolder: parentInfo.folderId || null,
+        });
+
+        const createdPathArray = created.path
+          ? created.path.split("/").filter(Boolean)
+          : [...(parentInfo.pathArray || []), folderName];
+
+        const info = { folderId: created._id, pathArray: createdPathArray };
+        folderCache.set(relPath, info);
+        return info;
+      };
+
+      // Process each file in the uploaded directory tree
+      for (const file of fileList) {
+        const rel = file.webkitRelativePath || file.relativePath || file.name;
+        const normalized = rel.replace(/\\/g, "/");
+
+        const dirPath = normalized.includes("/")
+          ? normalized.substring(0, normalized.lastIndexOf("/"))
+          : "";
+
+        const folderInfo = await ensureFolderForPath(dirPath);
+
+        await uploadFiles([file], {
+          folderId: folderInfo.folderId || null,
+          location: "My Drive",
+          path: folderInfo.pathArray,
+        });
+      }
+    } catch (err) {
+      console.error("Folder upload failed:", err);
+      alert(err.message || "Folder upload failed");
+    } finally {
       e.target.value = "";
-    };
+    }
+  };
+
+
 
 
     const sideItems = [
@@ -230,7 +392,7 @@ const Sidebar = () => {
               </MenuItem>
             </Menu>
             <input type="file" hidden multiple ref={fileInputRef} onChange={handleFilesSelected} /> 
-            <input type="file" hidden ref={folderInputRef} onChange={handleFolderSelected} />
+            <input type="file" hidden multiple webkitdirectory = "true"  directory="" ref={folderInputRef} onChange={handleFolderSelected} />
 
             {uploading && (
               <Typography
@@ -438,6 +600,13 @@ const Sidebar = () => {
           }}
           onMouseDown={handleMouseDown}
         />
+
+        <NewFolderDialog
+          open={newFolderDialogOpen}
+          onClose={() => setNewFolderDialogOpen(false)}
+          onSubmit={handleSidebarCreateFolderSubmit}
+        />
+
     </Box>
   );
 

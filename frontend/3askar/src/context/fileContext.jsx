@@ -129,12 +129,12 @@ const normalizeFile = (file) => {
     isDeleted: Boolean(file.isDeleted),
     sharedWith: Array.isArray(file.sharedWith)
       ? file.sharedWith.map(entry => ({
-          userId: entry.user?._id || entry.user,
-          name: entry.user?.name || null,
-          email: entry.user?.email || null,
-          picture: entry.user?.picture || null,
-          permission: entry.permission,
-        }))
+        userId: entry.user?._id || entry.user,
+        name: entry.user?.name || null,
+        email: entry.user?.email || null,
+        picture: entry.user?.picture || null,
+        permission: entry.permission,
+      }))
       : [],
     size: file.size,
     type: file.type,
@@ -154,7 +154,7 @@ export const FileProvider = ({ children }) => {
   const [searchResults, setSearchResults] = useState(null);
   const [searching, setSearching] = useState(false);
 
-  
+
 
   const filesRef = useRef([]);
   const trashRef = useRef([]);
@@ -215,8 +215,8 @@ export const FileProvider = ({ children }) => {
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          err.message ||
-          "Unable to load files at the moment."
+        err.message ||
+        "Unable to load files at the moment."
       );
     } finally {
       setLoading(false);
@@ -368,8 +368,8 @@ export const FileProvider = ({ children }) => {
       const file =
         typeof target === "string"
           ? filesRef.current.find((item) => item.id === target) ||
-            trashRef.current.find((item) => item.id === target) ||
-            sharedFiles.find((item) => item.id === target)
+          trashRef.current.find((item) => item.id === target) ||
+          sharedFiles.find((item) => item.id === target)
           : target;
 
       if (!file?.id) return null;
@@ -485,7 +485,7 @@ export const FileProvider = ({ children }) => {
     [fetchCollections]
   );
 
-    const runFileSearch = useCallback(
+  const runFileSearch = useCallback(
     async (params = {}) => {
       // Basic guard: if everything is empty, clear search
       const {
@@ -548,8 +548,8 @@ export const FileProvider = ({ children }) => {
         console.error("runFileSearch error:", err);
         setError(
           err.response?.data?.message ||
-            err.message ||
-            "Unable to search files right now."
+          err.message ||
+          "Unable to search files right now."
         );
       } finally {
         setSearching(false);
@@ -649,6 +649,31 @@ export const FileProvider = ({ children }) => {
     }
   }, []);
 
+  const canRename = useCallback(
+    (file) => {
+      if (!file) return false;
+      // 1. Owner can always rename
+      if (matchesCurrentUser(file)) return true;
+
+      // 2. If shared, check for "write" permission
+      if (file.sharedWith && Array.isArray(file.sharedWith)) {
+        const me = file.sharedWith.find((entry) => {
+          const entryId = entry.userId?.toString() || entry.user?.toString();
+          const entryEmail = entry.email?.toLowerCase() || entry.user?.email?.toLowerCase();
+
+          if (entryId && currentUserId && entryId === currentUserId) return true;
+          if (entryEmail && currentUserEmail && entryEmail === currentUserEmail) return true;
+          return false;
+        });
+
+        if (me && me.permission === "write") return true;
+      }
+
+      return false;
+    },
+    [matchesCurrentUser, currentUserId, currentUserEmail]
+  );
+
   const [filterMode, setFilterMode] = useState("files");
   const [typeFilter, setTypeFilter] = useState(null);
   const [peopleFilter, setPeopleFilter] = useState(null);
@@ -743,7 +768,7 @@ export const FileProvider = ({ children }) => {
     [files, sharedFiles, combinedFiles]
   );
 
-   const filteredFiles = useMemo(() => {
+  const filteredFiles = useMemo(() => {
     const activeSource = sourceFilter || "myDrive";
     let list = [...pickSourceList(activeSource)];
 
@@ -865,7 +890,10 @@ export const FileProvider = ({ children }) => {
         uploadFiles,
         refreshFiles,
         runFileSearch,
+        refreshFiles,
+        runFileSearch,
         clearSearch,
+        canRename,
 
       }}
     >

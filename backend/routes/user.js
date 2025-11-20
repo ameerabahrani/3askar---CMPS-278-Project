@@ -22,7 +22,9 @@ router.get("/find", async (req, res) => {
     const email = req.query.email;
     if (!email) return res.status(400).json({ message: "Missing email" });
 
-    const user = await User.findOne({ email }).select("_id name email picture");
+    const user = await User.findOne({ 
+      email: { $regex: new RegExp(`^${email}$`, 'i') } 
+    }).select("_id name email picture");
 
     if (!user) return res.status(404).json({ message: "User not found" });
 

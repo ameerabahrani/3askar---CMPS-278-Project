@@ -1,11 +1,15 @@
-import React, { useEffect } from "react";
-import { Box, Typography, IconButton, Grid, Paper } from "@mui/material";
-import { useFiles } from "../context/fileContext.jsx";
+import React, { useEffect, useMemo } from "react";
+import { Box, Typography, IconButton, Grid, Paper, Checkbox } from "@mui/material";
+import { useFiles } from "../context/fileContext.jsx"; // PG-1: selection hooks
 import MenuBar from "../components/MenuBar";
+import BatchToolbar from "../components/BatchToolbar";
+import { isFolder } from "../utils/fileHelpers";
+import { getRowStyles, getCardStyles, checkboxOverlayStyles } from "../styles/selectionTheme"; // PG-2: batch toolbar
 import FolderIcon from "@mui/icons-material/Folder";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import ListIcon from "@mui/icons-material/ViewList";
 import GridViewIcon from "@mui/icons-material/GridView";
+import StarIcon from "@mui/icons-material/Star"; 
 import FileKebabMenu from "../components/FileKebabMenu";
 import RenameDialog from "../components/RenameDialog";
 import ShareDialog from "../components/ShareDialog.jsx";
@@ -24,7 +28,20 @@ const formatDate = (value) => {
 };
 
 function MyDrive() {
-  const { filteredFiles, loading, error, toggleStar, renameFile, downloadFile } = useFiles();
+  const {
+    filteredFiles,
+    loading,
+    error,
+    toggleStar,
+    renameFile,
+    downloadFile,
+    selectedFiles,
+    selectedFolders,
+    toggleFileSelection,
+    toggleFolderSelection,
+    clearSelection,
+    selectAll,
+  } = useFiles();
 
   // DETAILS PANEL
   const [detailsPanelOpen, setDetailsPanelOpen] = React.useState(false);
@@ -47,6 +64,10 @@ function MyDrive() {
     setMenuAnchorEl(event.currentTarget);
     setSelectedFile(file);
   };
+
+  useEffect(() => {
+    clearSelection();
+  }, [clearSelection]);
 
   const closeMenu = () => {
     setMenuAnchorEl(null);
@@ -71,15 +92,48 @@ function MyDrive() {
     if (updated) setDetailsFile(updated);
   }, [filteredFiles, detailsFile]);
 
-  const driveFiles = React.useMemo(
-    () =>
-      filteredFiles.filter(
+  const driveFiles = useMemo(
+    () => {
+      if (!Array.isArray(filteredFiles)) return [];
+      return filteredFiles.filter(
         (file) =>
           !file.isDeleted &&
           (file.location?.toLowerCase() === "my drive" || !file.location)
-      ),
+      );
+    },
     [filteredFiles]
   );
+
+  // PG-3: select-all checkbox state
+  const allVisibleIds = useMemo(() => driveFiles.map(f => f.id), [driveFiles]);
+  const selectedCount = useMemo(
+    () => driveFiles.reduce((acc, f) => {
+      const isFolderItem = isFolder(f);
+      const set = isFolderItem ? selectedFolders : selectedFiles;
+      return set.has(f.id) ? acc + 1 : acc;
+    }, 0),
+    [driveFiles, selectedFiles, selectedFolders]
+  );
+  const allSelected = selectedCount > 0 && selectedCount === driveFiles.length;
+  const someSelected = selectedCount > 0 && selectedCount < driveFiles.length;
+
+  const handleHeaderToggle = () => {
+    if (allSelected) {
+      clearSelection();
+    } else {
+      selectAll(driveFiles);
+    }
+  };
+
+  const isItemSelected = (file) => {
+    const isFolderItem = isFolder(file);
+    return (isFolderItem ? selectedFolders : selectedFiles).has(file.id);
+  };
+
+  const toggleSelectionFor = (file) => {
+    const isFolderItem = isFolder(file);
+    if (isFolderItem) toggleFolderSelection(file.id); else toggleFileSelection(file.id);
+  };
 
   if (loading) {
     return <Typography sx={{ p: 2 }}>Loading files...</Typography>;
@@ -108,7 +162,8 @@ function MyDrive() {
         My Drive
       </Typography>
 
-      <MenuBar />
+      {/* PG-2: conditional toolbar swap */}
+      {selectedCount > 0 ? <BatchToolbar visibleItems={driveFiles} /> : <MenuBar />}
 
       {driveFiles.length === 0 ? (
         <Typography sx={{ p: 4, color: "#5f6368" }}>
@@ -136,9 +191,11 @@ function MyDrive() {
           {/* LIST VIEW */}
           {viewMode === "list" ? (
             <>
+              {/* Header row with select-all checkbox (PG-3) */}
               <Box
                 sx={{
                   display: "flex",
+                  alignItems: "center",
                   px: 2,
                   py: 1,
                   borderBottom: "1px solid #e0e0e0",
@@ -147,6 +204,14 @@ function MyDrive() {
                   fontWeight: 500,
                 }}
               >
+                <Box sx={{ width: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Checkbox
+                    size="small"
+                    indeterminate={someSelected && !allSelected}
+                    checked={allSelected}
+                    onChange={handleHeaderToggle}
+                  />
+                </Box>
                 <Box sx={{ flex: 3 }}>Name</Box>
                 <Box sx={{ flex: 2 }}>Owner</Box>
                 <Box sx={{ flex: 2 }}>Location</Box>
@@ -154,39 +219,90 @@ function MyDrive() {
                 <Box sx={{ width: 40 }} />
               </Box>
 
-              {driveFiles.map((file) => (
-                <HoverActions
-                  key={file.id}
-                  file={file}
-                  toggleStar={toggleStar}
-                  openShareDialog={openShareDialog}
-                  openRenameDialog={openRenameDialog}
-                  openMenu={openMenu}
-                  downloadFile={downloadFile}
-                  formatDate={formatDate}
-                />
-              ))}
+{driveFiles.map((file) => {
+                const selected = isItemSelected(file);
+                return (
+                  <HoverActions
+                    key={file.id}
+                    file={file}
+                    toggleStar={toggleStar}
+                    openShareDialog={openShareDialog}
+                    openRenameDialog={openRenameDialog}
+                    openMenu={openMenu}
+                    downloadFile={downloadFile}
+                    formatDate={formatDate}
+                    renderContent={(f) => (
+                      <>
+                        <Box
+                          sx={{ width: 40, display: "flex", justifyContent: "center" }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Checkbox
+                            size="small"
+                            checked={selected}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              toggleSelectionFor(file);
+                            }}
+                          />
+                        </Box>
 
+                        <Box sx={{ flex: 3, display: "flex", alignItems: "center", gap: 1.5 }}>
+                          {f.type === "folder" ? (
+                            <FolderIcon sx={{ fontSize: 24, color: "#4285f4" }} />
+                          ) : (
+                            <img
+                              src={f.icon || DEFAULT_FILE_ICON}
+                              width={20}
+                              height={20}
+                              alt="file icon"
+                            />
+                          )}
+                          {f.name}
+                        </Box>
+
+                        <Box sx={{ flex: 2, color: "#5f6368" }}>
+                          {f.owner || "Unknown"}
+                        </Box>
+
+                        <Box sx={{ flex: 2, color: "#5f6368" }}>
+                          {f.location || "My Drive"}
+                        </Box>
+
+                        <Box sx={{ flex: 2, color: "#5f6368" }}>
+                          {formatDate(f.lastAccessedAt || f.uploadedAt)}
+                        </Box>
+                      </>
+                    )}
+                  />
+                );
+              })}
             </>
           ) : (
             /* GRID VIEW */
             <Grid container spacing={2}>
-              {driveFiles.map((file) => (
-                <Grid item xs={12} sm={6} md={3} lg={2} key={file.id}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      border: "1px solid #e0e0e0",
-                      borderRadius: 2,
-                      cursor: "pointer",
-                      transition: "0.2s",
-                      position: "relative",
-                      "&:hover": {
-                        transform: "translateY(-2px)",
-                        boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
-                      },
-                    }}
-                  >
+              {driveFiles.map((file) => {
+                const selected = isItemSelected(file);
+                return (
+                  <Grid item xs={12} sm={6} md={3} lg={2} key={file.id}>
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        borderRadius: 2,
+                        cursor: "pointer",
+                        transition: "0.2s",
+                        position: "relative",
+                        ...getCardStyles(selected),
+                      }}
+                      onClick={() => { /* placeholder for potential open */ }}
+                    >
+                      {/* PG-6: grid view checkbox overlay */}
+                      <Checkbox
+                        size="small"
+                        checked={selected}
+                        onChange={(e) => { e.stopPropagation(); toggleSelectionFor(file); }}
+                        sx={checkboxOverlayStyles}
+                      />
                     <IconButton
                       size="small"
                       sx={{ position: "absolute", top: 4, right: 4 }}
@@ -216,7 +332,7 @@ function MyDrive() {
                       )}
                     </Box>
 
-                    <Box sx={{ p: 1.5 }}>
+                    <Box sx={{ p: 1.5, pt: 5 }}>
                       <Typography sx={{ fontWeight: 500, fontSize: 14, mb: 0.5 }}>
                         {file.name}
                       </Typography>
@@ -227,9 +343,10 @@ function MyDrive() {
                         {formatDate(file.lastAccessedAt || file.uploadedAt)}
                       </Typography>
                     </Box>
-                  </Paper>
-                </Grid>
-              ))}
+                    </Paper>
+                  </Grid>
+                );
+              })}
             </Grid>
           )}
         </>

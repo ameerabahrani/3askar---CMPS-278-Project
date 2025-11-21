@@ -1,4 +1,4 @@
-﻿// Helper to check GridFS readiness
+// Helper to check GridFS readiness
 function ensureGridFSReady(res) {
     if (!gridfsBucket) {
         res.status(503).json({ message: "GridFS Bucket not initialized" });
@@ -18,6 +18,8 @@ const { read } = require('fs');
 const updateStorage = require('../utils/storage');
 const File = require("../models/File");
 const User = require("../models/User");
+const Folder = require("../models/Folder");
+
 
 const OWNER_FIELDS = "name email picture";
 const SHARED_WITH_POPULATE = { path: "sharedWith.user", select: OWNER_FIELDS };
@@ -171,7 +173,7 @@ router.delete("/:id", async (req, res) => {
     if (!ensureGridFSReady(res)) return;
     try {
         // req.user = { _id: new ObjectId() }; // TEMPORARY for Postman
-        // console.log("âž¡ï¸ DELETE ROUTE REACHED");
+        // console.log("âž¡ï¸ DELETE ROUTE REACHED");
         // console.log("fileId =", req.params.id);
         // console.log("req.user =", req.user);
         // console.log("gridfsBucket =", gridfsBucket);
@@ -260,6 +262,17 @@ router.post("/saveMetadata", async (req, res) => {
 
         }
 
+        // resolve folderId (can be publicId or _id coming from frontend)
+        let folderObjectId = null;
+        if (folderId) {
+        const folderDoc = await findFolderByAnyId(folderId);
+        if (!folderDoc) {
+            return res.status(400).json({ message: "Invalid folderId" });
+        }
+        folderObjectId = folderDoc._id;
+        }
+
+
         //3. create file metadata document
         const newFile = new File({
             gridFsId: objectId,
@@ -268,7 +281,7 @@ router.post("/saveMetadata", async (req, res) => {
             owner: req.user._id, // temporary user
             size,
             type,
-            folderId: folderId || null,
+            folderId: folderObjectId,
             location: location || "My Drive",
             path: path || [],
             isStarred: isStarred || false,
@@ -613,7 +626,26 @@ router.get("/list/folder/:folderId", async (req, res) => {
         console.error("Error getting folder files:", err);
         res.status(500).json({ message: "Error fetching files" });
     }
+
+    const files = await File.find({
+      isDeleted: false,
+      folderId: folderObjectId,
+      $or: [
+        { owner: req.user._id },
+        { "sharedWith.user": req.user._id },
+      ],
+    })
+      .populate("owner", OWNER_FIELDS)
+      .populate(SHARED_WITH_POPULATE)
+      .sort({ filename: 1 });
+
+    res.json(files);
+  } catch (err) {
+    console.error("Error getting folder files:", err);
+    res.status(500).json({ message: "Error fetching files" });
+  }
 });
+
 
 //Get starred files
 router.get("/list/starred", async (req, res) => {

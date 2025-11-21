@@ -6,6 +6,7 @@ import {
   Grid,
   Paper,
   CircularProgress,
+  Checkbox,
 } from "@mui/material";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import ListIcon from "@mui/icons-material/ViewList";
@@ -17,8 +18,11 @@ import FileKebabMenu from "../components/FileKebabMenu";
 import RenameDialog from "../components/RenameDialog";
 import ShareDialog from "../components/ShareDialog";
 import DetailsPanel from "../components/DetailsPanel";
+import BatchToolbar from "../components/BatchToolbar";
 import { useFiles } from "../context/fileContext.jsx";
 import { searchFiles } from "../services/api/files";
+import { isFolder } from "../utils/fileHelpers";
+import { getRowStyles, getCardStyles, checkboxOverlayStyles } from "../styles/selectionTheme";
 
 const DEFAULT_FILE_ICON =
   "https://www.gstatic.com/images/icons/material/system/2x/insert_drive_file_black_24dp.png";
@@ -104,7 +108,17 @@ function SearchResults() {
   const [searchParams] = useSearchParams();
   const queryKey = searchParams.toString();
 
-  const { renameFile, refreshFiles, toggleStar } = useFiles();
+  const {
+    renameFile,
+    refreshFiles,
+    toggleStar,
+    selectedFiles,
+    selectedFolders,
+    toggleFileSelection,
+    toggleFolderSelection,
+    clearSelection,
+    selectAll,
+  } = useFiles();
 
   const [results, setResults] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -160,6 +174,10 @@ function SearchResults() {
   }, [loadResults]);
 
   React.useEffect(() => {
+    clearSelection();
+  }, [queryKey, clearSelection]);
+
+  React.useEffect(() => {
     if (!detailsFile) return;
     const updated = results.find((f) => f.id === detailsFile.id);
     if (updated) setDetailsFile(updated);
@@ -184,6 +202,36 @@ function SearchResults() {
     }
     setDetailsFile(file);
     setDetailsPanelOpen(true);
+  };
+
+  const isItemSelected = (file) => {
+    const itemIsFolder = isFolder(file);
+    return (itemIsFolder ? selectedFolders : selectedFiles).has(file.id);
+  };
+
+  const toggleSelectionFor = (file) => {
+    const itemIsFolder = isFolder(file);
+    if (itemIsFolder) toggleFolderSelection(file.id); else toggleFileSelection(file.id);
+  };
+
+  const selectedCount = React.useMemo(
+    () =>
+      results.reduce((acc, f) => {
+        const itemIsFolder = isFolder(f);
+        const set = itemIsFolder ? selectedFolders : selectedFiles;
+        return set.has(f.id) ? acc + 1 : acc;
+      }, 0),
+    [results, selectedFiles, selectedFolders]
+  );
+  const allSelected = selectedCount > 0 && selectedCount === results.length;
+  const someSelected = selectedCount > 0 && selectedCount < results.length;
+
+  const handleHeaderToggle = () => {
+    if (allSelected) {
+      clearSelection();
+    } else {
+      selectAll(results);
+    }
   };
 
   const handleStarClick = async (event, file) => {
@@ -235,6 +283,8 @@ function SearchResults() {
         </Typography>
       )}
 
+      {selectedCount > 0 && <BatchToolbar visibleItems={results} />}
+
       <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
         <IconButton
           onClick={() => setViewMode("list")}
@@ -267,6 +317,7 @@ function SearchResults() {
           <Box
             sx={{
               display: "flex",
+              alignItems: "center",
               px: 2,
               py: 1,
               borderBottom: "1px solid #e0e0e0",
@@ -275,6 +326,14 @@ function SearchResults() {
               fontWeight: 500,
             }}
           >
+            <Box sx={{ width: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Checkbox
+                size="small"
+                indeterminate={someSelected && !allSelected}
+                checked={allSelected}
+                onChange={handleHeaderToggle}
+              />
+            </Box>
             <Box sx={{ flex: 3 }}>Name</Box>
             <Box sx={{ flex: 2 }}>Owner</Box>
             <Box sx={{ flex: 2 }}>Location</Box>
@@ -282,151 +341,167 @@ function SearchResults() {
             <Box sx={{ width: 40 }} />
           </Box>
 
-          {results.map((file) => (
-            <Box
-              key={file.id}
-              onClick={() => handleFileClick(file)}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                px: 2,
-                py: 1.5,
-                borderBottom: "1px solid #f1f3f4",
-                cursor: "pointer",
-                "&:hover": { backgroundColor: "#f8f9fa" },
-              }}
-            >
+          {results.map((file) => {
+            const selected = isItemSelected(file);
+            return (
               <Box
-                sx={{
-                  flex: 3,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.5,
-                }}
-              >
-                <IconButton
-                  onClick={(e) => handleStarClick(e, file)}
-                  size="small"
-                >
-                  <StarIcon
-                    sx={{
-                      color: file.isStarred ? "#f7cb4d" : "#c6c6c6",
-                      fontSize: 22,
-                    }}
-                  />
-                </IconButton>
-
-                {(file.type || "").toLowerCase() === "folder" ? (
-                  <FolderIcon sx={{ fontSize: 24, color: "#4285f4" }} />
-                ) : (
-                  <img
-                    src={file.icon || DEFAULT_FILE_ICON}
-                    width={20}
-                    height={20}
-                    alt="file type"
-                  />
-                )}
-
-                <Typography sx={{ fontWeight: 500 }}>{file.name}</Typography>
-              </Box>
-
-              <Box sx={{ flex: 2 }}>
-                <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
-                  {file.owner || "Unknown"}
-                </Typography>
-              </Box>
-
-              <Box sx={{ flex: 2 }}>
-                <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
-                  {file.location || "My Drive"}
-                </Typography>
-              </Box>
-
-              <Box sx={{ flex: 2 }}>
-                <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
-                  {formatDate(file.lastAccessedAt || file.uploadedAt)}
-                </Typography>
-              </Box>
-
-              <Box
-                sx={{
-                  width: 40,
-                  display: "flex",
-                  justifyContent: "flex-end",
-                }}
-              >
-                <IconButton
-                  size="small"
-                  onClick={(e) => openMenu(e, file)}
-                >
-                  <MoreVertIcon sx={{ color: "#5f6368" }} />
-                </IconButton>
-              </Box>
-            </Box>
-          ))}
-        </>
-      ) : (
-        <Grid container spacing={2}>
-          {results.map((file) => (
-            <Grid item xs={12} sm={6} md={3} lg={2} key={file.id}>
-              <Paper
-                elevation={0}
+                key={file.id}
                 onClick={() => handleFileClick(file)}
                 sx={{
-                  border: "1px solid #e0e0e0",
-                  borderRadius: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  px: 2,
+                  py: 1.5,
+                  borderBottom: "1px solid #f1f3f4",
                   cursor: "pointer",
-                  transition: "0.2s",
-                  position: "relative",
-                  "&:hover": {
-                    transform: "translateY(-2px)",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
-                  },
+                  ...getRowStyles(selected),
                 }}
               >
-                <IconButton
-                  size="small"
-                  sx={{ position: "absolute", top: 4, right: 4 }}
-                  onClick={(e) => openMenu(e, file)}
-                >
-                  <MoreVertIcon sx={{ color: "#5f6368" }} />
-                </IconButton>
-
+                <Box sx={{ width: 40, display: "flex", justifyContent: "center" }}>
+                  <Checkbox
+                    size="small"
+                    checked={selected}
+                    onChange={(e) => { e.stopPropagation(); toggleSelectionFor(file); }}
+                  />
+                </Box>
                 <Box
                   sx={{
-                    height: 120,
+                    flex: 3,
                     display: "flex",
-                    justifyContent: "center",
                     alignItems: "center",
-                    backgroundColor: "#f8f9fa",
+                    gap: 1.5,
                   }}
                 >
+                  <IconButton
+                    onClick={(e) => handleStarClick(e, file)}
+                    size="small"
+                  >
+                    <StarIcon
+                      sx={{
+                        color: file.isStarred ? "#f7cb4d" : "#c6c6c6",
+                        fontSize: 22,
+                      }}
+                    />
+                  </IconButton>
+
                   {(file.type || "").toLowerCase() === "folder" ? (
-                    <FolderIcon sx={{ fontSize: 40, color: "#4285f4" }} />
+                    <FolderIcon sx={{ fontSize: 24, color: "#4285f4" }} />
                   ) : (
                     <img
                       src={file.icon || DEFAULT_FILE_ICON}
-                      width={40}
-                      height={40}
+                      width={20}
+                      height={20}
                       alt="file type"
                     />
                   )}
+
+                  <Typography sx={{ fontWeight: 500 }}>{file.name}</Typography>
                 </Box>
 
-                <Box sx={{ p: 1.5 }}>
-                  <Typography sx={{ fontWeight: 500, fontSize: 14, mb: 0.5 }}>
-                    {file.name}
-                  </Typography>
-                  <Typography sx={{ color: "#5f6368", fontSize: 12 }}>
+                <Box sx={{ flex: 2 }}>
+                  <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
                     {file.owner || "Unknown"}
                   </Typography>
-                  <Typography sx={{ color: "#5f6368", fontSize: 12 }}>
+                </Box>
+
+                <Box sx={{ flex: 2 }}>
+                  <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
+                    {file.location || "My Drive"}
+                  </Typography>
+                </Box>
+
+                <Box sx={{ flex: 2 }}>
+                  <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
                     {formatDate(file.lastAccessedAt || file.uploadedAt)}
                   </Typography>
                 </Box>
-              </Paper>
-            </Grid>
-          ))}
+
+                <Box
+                  sx={{
+                    width: 40,
+                    display: "flex",
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <IconButton
+                    size="small"
+                    onClick={(e) => openMenu(e, file)}
+                  >
+                    <MoreVertIcon sx={{ color: "#5f6368" }} />
+                  </IconButton>
+                </Box>
+              </Box>
+            );
+          })}
+        </>
+      ) : (
+        <Grid container spacing={2}>
+          {results.map((file) => {
+            const selected = isItemSelected(file);
+            return (
+              <Grid item xs={12} sm={6} md={3} lg={2} key={file.id}>
+                <Paper
+                  elevation={0}
+                  onClick={() => handleFileClick(file)}
+                  sx={{
+                    border: "1px solid #e0e0e0",
+                    borderRadius: 2,
+                    cursor: "pointer",
+                    transition: "0.2s",
+                    position: "relative",
+                    ...getCardStyles(selected),
+                  }}
+                >
+                  <Checkbox
+                    size="small"
+                    checked={selected}
+                    onChange={(e) => { e.stopPropagation(); toggleSelectionFor(file); }}
+                    sx={checkboxOverlayStyles}
+                  />
+                  <IconButton
+                    size="small"
+                    sx={{ position: "absolute", top: 4, right: 4 }}
+                    onClick={(e) => openMenu(e, file)}
+                  >
+                    <MoreVertIcon sx={{ color: "#5f6368" }} />
+                  </IconButton>
+
+                  <Box
+                    sx={{
+                      height: 120,
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      backgroundColor: "#f8f9fa",
+                    }}
+                  >
+                    {(file.type || "").toLowerCase() === "folder" ? (
+                      <FolderIcon sx={{ fontSize: 40, color: "#4285f4" }} />
+                    ) : (
+                      <img
+                        src={file.icon || DEFAULT_FILE_ICON}
+                        width={40}
+                        height={40}
+                        alt="file type"
+                      />
+                    )}
+                  </Box>
+
+                  <Box sx={{ p: 1.5 }}>
+                    <Typography sx={{ fontWeight: 500, fontSize: 14, mb: 0.5 }}>
+                      {file.name}
+                    </Typography>
+                    <Typography sx={{ color: "#5f6368", fontSize: 12 }}>
+                      {file.owner || "Unknown"}
+                    </Typography>
+                    <Typography sx={{ color: "#5f6368", fontSize: 12 }}>
+                      {formatDate(file.lastAccessedAt || file.uploadedAt)}
+                    </Typography>
+                  </Box>
+                </Paper>
+              </Grid>
+            );
+          })}
         </Grid>
       )}
 

@@ -4,43 +4,86 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Button,
   TextField,
+  Button,
+  Box,
+  IconButton,
 } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 
-function RenameDialog({ open, file, onClose, onSubmit }) {
-  const [value, setValue] = React.useState(file?.name || "");
+function RenameDialog({
+  open,
+  file,
+  title,
+  submitLabel,
+  placeholder,
+  onClose,
+  onSubmit,
+}) {
+  const [value, setValue] = React.useState("");
 
   React.useEffect(() => {
-    setValue(file?.name || "");
-  }, [file]);
+    if (open) {
+      setValue(file?.name || "");
+    } else {
+      setValue("");
+    }
+  }, [open, file]);
 
-  const handleSubmit = () => {
-    if (!value.trim()) return;
-    onSubmit(value.trim());
+  const handleSubmit = (e) => {
+    e?.preventDefault();
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    onSubmit?.(trimmed);
   };
+
+  const effectiveTitle =
+    title || (file ? `Rename “${file.name}”` : "Rename item");
+  const effectiveSubmitLabel = submitLabel || "Rename";
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Rename</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 600, pb: 1 }}>
+        {effectiveTitle}
+        <IconButton
+          onClick={onClose}
+          sx={{ position: "absolute", right: 12, top: 12 }}
+        >
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
 
-      <DialogContent>
-        <TextField
-          autoFocus
-          fullWidth
-          label="File name"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          variant="outlined"
-          size="small"
-          sx={{ mt: 1 }}
-        />
+      <DialogContent dividers>
+        <Box
+          component="form"
+          onSubmit={handleSubmit}
+          sx={{ mt: 1, display: "flex", flexDirection: "column", gap: 2 }}
+        >
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            label={placeholder || "Name"}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
+          />
+        </Box>
       </DialogContent>
 
-      <DialogActions>
+      <DialogActions sx={{ px: 3, py: 1.5 }}>
         <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained">
-          Save
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={!value.trim()}
+        >
+          {effectiveSubmitLabel}
         </Button>
       </DialogActions>
     </Dialog>

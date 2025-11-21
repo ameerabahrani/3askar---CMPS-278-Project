@@ -18,6 +18,7 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useFiles } from "../context/fileContext";
 
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -44,6 +45,7 @@ const isStrongPassword = (value) => {
 
 export default function LoginPage() {
   const { setUser } = useAuth();
+  const { refreshFiles } = useFiles();
   const navigate = useNavigate();
 
   // LOGIN STATE
@@ -213,6 +215,8 @@ export default function LoginPage() {
           if (profileRes.ok) {
             const profileData = await profileRes.json();
             setUser(profileData);
+            // Immediately refresh file collections now that we have a user
+            refreshFiles();
           } else {
             console.warn("Login succeeded but /user/profile failed");
           }

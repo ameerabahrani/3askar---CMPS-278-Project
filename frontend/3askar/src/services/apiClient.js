@@ -5,6 +5,45 @@ const API_BASE_URL =
     import.meta.env.VITE_API_URL.replace(/\/+$/, "")) ||
   "http://localhost:5000";
 
+let requestCounter = 0;
+const nowIso = () => new Date().toISOString();
+const requestTimer = () => performance?.now?.() ?? Date.now();
+
+const LOG_ENABLED = false;
+
+const summarizeBody = (body) => {
+  if (body === null || body === undefined) return null;
+  if (body instanceof FormData) {
+    return {
+      kind: "FormData",
+      keys: Array.from(body.keys()),
+    };
+  }
+  if (body instanceof Blob) return { kind: "Blob", size: body.size, type: body.type };
+  if (body instanceof ArrayBuffer || ArrayBuffer.isView(body))
+    return { kind: "ArrayBuffer", byteLength: body.byteLength };
+  if (typeof body === "string")
+    return { kind: "string", length: body.length, preview: body.slice(0, 120) };
+  if (typeof body === "object") {
+    try {
+      return {
+        kind: "json",
+        keys: Object.keys(body),
+        preview: JSON.stringify(body).slice(0, 200),
+      };
+    } catch {
+      return { kind: "json", preview: "unserializable" };
+    }
+  }
+  return { kind: typeof body };
+};
+
+const logRequest = (phase, payload) => {
+  if (!LOG_ENABLED) return;
+  const base = `[apiClient][${nowIso()}] ${phase}`;
+  console.info(base, payload);
+};
+
 const isJsonLikeBody = (body) =>
   body !== null &&
   body !== undefined &&
@@ -22,12 +61,27 @@ const buildUrl = (path) => { // checks if the request URL is correct
 
 async function request(path, options = {}) {
   const {
-    method = "GET", //default HTTP method is Get
-    body, 
+    method = "GET", // default HTTP method
+    body,
     headers,
-    credentials = "include", //include cookies, for auth
-    ...rest //any other thing, add it into a new object called rest
+    credentials = "include", // include cookies for auth
+    params, // optional query parameters (plain object)
+    ...rest
   } = options;
+
+  // Minimal query serialization (only if params is a plain object with keys)
+  if (params && typeof params === "object" && !Array.isArray(params)) {
+    const entries = Object.entries(params)
+      .filter(([_, v]) => v !== undefined && v !== null && v !== "");
+    if (entries.length) {
+      const qs = entries
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+        .join("&");
+      if (qs) {
+        path += path.includes("?") ? `&${qs}` : `?${qs}`;
+      }
+    }
+  }
 
   const finalHeaders = new Headers(headers || {}); // if user game custom headers, use. if not, use empty {}, turn them into Header object that fetch understands 
   let preparedBody = body; //decides how to send the data
@@ -49,18 +103,45 @@ async function request(path, options = {}) {
   }
 
   if (!finalHeaders.has("Accept")) {
-    finalHeaders.set("Accept", "application/json"); 
+    finalHeaders.set("Accept", "application/json");
   }
 
-  const response = await fetch(buildUrl(path), { //use the final url
-    method, //use correct method
-    body: preparedBody, //use the prepared body
-    headers: finalHeaders, // use the prepared headers
-    credentials, //send the cookies
-    ...rest, //add any leftover fetch options
+  const requestId = ++requestCounter;
+  const started = requestTimer();
+  const url = buildUrl(path);
+
+  logRequest("request:start", {
+    requestId,
+    method,
+    url,
+    credentials,
+    headers: Object.fromEntries(finalHeaders.entries()),
+    body: summarizeBody(preparedBody),
   });
 
-  let data = null; 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+  let response;
+  try {
+    response = await fetch(url, { //use the final url
+      method, //use correct method
+      body: preparedBody, //use the prepared body
+      headers: finalHeaders, // use the prepared headers
+      credentials, //send the cookies
+      signal: controller.signal,
+      ...rest, //add any leftover fetch options
+    });
+    clearTimeout(timeoutId);
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      logRequest("request:timeout", { requestId, durationMs: 10000 });
+      throw new Error("Request timed out");
+    }
+    throw error;
+  }
+
+  let data = null;
   const text = await response.text(); //read it first as plain text
   if (text) {
     try {
@@ -70,6 +151,8 @@ async function request(path, options = {}) {
     }
   }
 
+  const durationMs = Number((requestTimer() - started).toFixed(1));
+
   if (!response.ok) {
     const error = new Error(
       data?.message || `Request failed with status ${response.status}`
@@ -78,12 +161,30 @@ async function request(path, options = {}) {
       status: response.status,
       data,
     };
+    logRequest("request:error", {
+      requestId,
+      method,
+      url,
+      status: response.status,
+      durationMs,
+      error: error.message,
+      responsePreview: typeof data === "string" ? data.slice(0, 200) : data,
+    });
     throw error;
   }
 
+  logRequest("request:success", {
+    requestId,
+    method,
+    url,
+    status: response.status,
+    durationMs,
+    responsePreview: typeof data === "string" ? data.slice(0, 200) : data,
+  });
+
   return { data, status: response.status }; //if no error
 }
- 
+
 const apiClient = { //shortcut helpers
   request,
   get: (path, options = {}) => request(path, { ...options, method: "GET" }),

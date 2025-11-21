@@ -183,3 +183,40 @@ export async function copyFolder(folderId, { name, parentFolder } = {}) {
 
   return handleResponse(res);
 }
+
+export function downloadFolderZip(folderId) {
+  const url = `${API_BASE_URL}/folders/${folderId}/download`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+export async function shareFolder(folderId, { userId, permission }) {
+  const res = await fetch(`${API_BASE_URL}/folders/${folderId}/share`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ userId, permission }),
+  });
+  return handleResponse(res);
+}
+
+export async function updateFolderPermission(folderId, { userId, permission }) {
+  const res = await fetch(`${API_BASE_URL}/folders/${folderId}/permission`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ userId, permission }),
+  });
+  return handleResponse(res);
+}
+
+export async function unshareFolder(folderId, { userId }) {
+  const res = await fetch(`${API_BASE_URL}/folders/${folderId}/unshare`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ userId }),
+  });
+  return handleResponse(res);
+}
+
+

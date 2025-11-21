@@ -631,13 +631,15 @@ router.get("/list/folder/:folderId", async (req, res) => {
     }
 
     const files = await File.find({
-      owner: req.user._id,
       isDeleted: false,
       folderId: folderObjectId,
+      $or: [
+        { owner: req.user._id },
+        { "sharedWith.user": req.user._id },
+      ],
     })
-      
-        .populate("owner", OWNER_FIELDS)
-        .populate(SHARED_WITH_POPULATE)
+      .populate("owner", OWNER_FIELDS)
+      .populate(SHARED_WITH_POPULATE)
       .sort({ filename: 1 });
 
     res.json(files);

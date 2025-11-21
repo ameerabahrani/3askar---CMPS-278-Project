@@ -78,6 +78,31 @@ async function findFolderByAnyId(id) {
   return null;
 }
 
+// Collect a folder and ALL its descendants
+async function walkFolderTree(rootFolderId) {
+  const result = [];
+
+  async function dfs(folderId) {
+    const folder = await Folder.findById(folderId);
+    if (!folder) return;
+
+    result.push(folder);
+
+    const children = await Folder.find({
+      parentFolder: folder._id,
+      isDeleted: false,
+    });
+
+    for (const child of children) {
+      await dfs(child._id);
+    }
+  }
+
+  await dfs(rootFolderId);
+  return result;                // array of Folder docs (root + all descendants)
+}
+
+
 let gridfsBucket;
 mongoose.connection.once("open", () => {
   gridfsBucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
@@ -490,7 +515,7 @@ router.get("/:id/breadcrumb", ensureAuth, async (req, res) => {
   }
 });
 
-// Deep copy a folder and all its subfolders
+// Deep copy a folder and all its subfolders + files
 router.post("/:id/copy", ensureAuth, async (req, res) => {
   try {
     const folderId = req.params.id;
@@ -509,96 +534,108 @@ router.post("/:id/copy", ensureAuth, async (req, res) => {
         .json({ message: "You do not have permission to copy this folder" });
     }
 
-    // Decide where to paste the copy:
-    // - If parentFolder is provided in body → resolve it (publicId or _id) and use its ObjectId
-    // - Else → use original.parentFolder (copy next to original)
-    let targetParent = null; // will always be an ObjectId or null  // ⬅️ edited
+    // Decide where to paste the copy
+    let targetParent = null;
 
     if (typeof parentFolder !== "undefined") {
       if (parentFolder) {
-        // parentFolder comes from frontend as publicId (or _id)  // ⬅️ added
-        const targetParentDoc = await findFolderByAnyId(parentFolder); // ⬅️ edited
-        if (!targetParentDoc) { // ⬅️ added
-          return res.status(404).json({ message: "Target parent folder not found" });
+        const targetParentDoc = await findFolderByAnyId(parentFolder);
+        if (!targetParentDoc) {
+          return res
+            .status(404)
+            .json({ message: "Target parent folder not found" });
         }
-        targetParent = targetParentDoc._id; // store actual ObjectId in DB  // ⬅️ edited
+        targetParent = targetParentDoc._id;
       } else {
-        // Explicitly copy to root  // ⬅️ added
-        targetParent = null;
+        targetParent = null; // explicit root
       }
     } else {
-      // No parentFolder passed → copy next to original (same parent as original)  // ⬅️ clarified
-      targetParent = original.parentFolder || null; // ObjectId or null
+      // same parent as original
+      targetParent = original.parentFolder || null;
     }
 
-
-    // Name of the root copied folder
+    // Name for the root copied folder
     const rootCopyName =
       name && name.trim() ? name.trim() : `${original.name} (copy)`;
 
-    // Helper: recursively copy a folder and its subfolders
+    // Helper: recursively copy a folder, its files, and its subfolders
     async function copyFolderTree(sourceFolder, newParentId, options = {}) {
-      const {
-        isRoot = false,
-        overrideName = null,
-      } = options;
+      const { isRoot = false, overrideName = null } = options;
 
-      // Decide the name for this particular copied folder
       const folderName = isRoot
         ? overrideName || `${sourceFolder.name} (copy)`
         : sourceFolder.name;
 
-      // Build path for the copied folder (using the new parent)
       const path = await buildPath(folderName, newParentId);
 
       const copiedFolder = new Folder({
         name: folderName,
-        owner: userId,                      // copy belongs to current user
+        owner: userId, // copy belongs to current user
         parentFolder: newParentId,
         isDeleted: false,
         location: "MY_DRIVE",
-        isStarred: false,                   // usually copies are not starred
+        isStarred: false,
         description: sourceFolder.description,
         path,
-        sharedWith: [],                     // copies start as private
+        sharedWith: [], // copies start private
       });
 
       await copiedFolder.save();
 
-      // TODO: when you have a File model:
-      // - find all files with parentFolder = sourceFolder._id
-      // - create new files pointing to copiedFolder._id
-      // For now we only copy the folder hierarchy.
-
-      // Find direct child folders of this source folder
-      const children = await Folder.find({
-        parentFolder: sourceFolder._id,
-        isDeleted: false, // usually don't copy trashed children
+      // 1) Copy all files directly inside this folder
+      const filesInSource = await File.find({
+        folderId: sourceFolder._id,
+        isDeleted: false,
       });
 
-      // Recursively copy each child under the new copied folder
-      for (const child of children) {
-        await copyFolderTree(child, copiedFolder._id, {
-          isRoot: false,
+      for (const file of filesInSource) {
+        const fileCopy = new File({
+          gridFsId: file.gridFsId,              // reuse stored bytes
+          filename: file.filename,
+          originalName: file.originalName,
+          owner: userId,
+          size: file.size,
+          type: file.type,
+          location: "My Drive",                 // consistent with your file model
+          folderId: copiedFolder._id,
+          path: Array.isArray(file.path) ? [...file.path] : [],
+          isStarred: false,
+          isDeleted: false,
+          description: file.description || "",
+          sharedWith: [],                       // new copy is private
+          uploadDate: new Date(),
+          lastAccessed: new Date(),
         });
+
+        await fileCopy.save();
+      }
+
+      // 2) Recursively copy child folders
+      const children = await Folder.find({
+        parentFolder: sourceFolder._id,
+        isDeleted: false,
+      });
+
+      for (const child of children) {
+        await copyFolderTree(child, copiedFolder._id, { isRoot: false });
       }
 
       return copiedFolder;
     }
 
-    // Start the deep copy from the original folder as the "root"
+    // Start deep copy from root
     const rootCopy = await copyFolderTree(original, targetParent, {
       isRoot: true,
       overrideName: rootCopyName,
     });
 
-    // Return the root copied folder (front-end can reload its view after)
     res.status(201).json(rootCopy);
   } catch (error) {
     console.error("Error copying folder tree:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 router.get("/:id", ensureAuth, async (req, res) => {
   try {
@@ -707,6 +744,225 @@ router.get("/:id/download", ensureAuth, async (req, res) => {
     }
   }
 });
+
+
+// --- FOLDER SHARING ROUTES --------------------------------------
+
+// Walk a folder tree and apply callbacks to each folder + file
+async function walkFolderTree(rootFolderId, visitFolder, visitFile) {
+  const queue = [rootFolderId];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift();
+    const folder = await Folder.findById(currentId);
+    if (!folder) continue;
+
+    if (visitFolder) {
+      await visitFolder(folder);
+    }
+
+    // All files directly inside this folder
+    if (visitFile) {
+      const files = await File.find({
+        folderId: folder._id,
+        isDeleted: false,
+      });
+
+      for (const f of files) {
+        await visitFile(f);
+      }
+    }
+
+    // Enqueue child folders
+    const children = await Folder.find({
+      parentFolder: folder._id,
+      isDeleted: false,
+    });
+
+    for (const child of children) {
+      queue.push(child._id);
+    }
+  }
+}
+
+// PATCH /folders/:id/share
+// Share a folder (and everything inside it) with a user
+router.patch("/:id/share", ensureAuth, async (req, res) => {
+  try {
+    const ownerId = req.user._id;
+    const { userId, canEdit } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: "userId is required" });
+    }
+
+    const folder = await findFolderByAnyId(req.params.id);
+    if (!folder) {
+      return res.status(404).json({ message: "Folder not found" });
+    }
+
+    // Only someone who can write to the folder can share it
+    if (!canWriteFolder(folder, ownerId)) {
+      return res
+        .status(403)
+        .json({ message: "You do not have permission to share this folder" });
+    }
+
+    const targetUserId = userId.toString();
+    const canEditBool = !!canEdit;
+
+    await walkFolderTree(
+      folder._id,
+      async (f) => {
+        const existing = (f.sharedWith || []).find(
+          (entry) => entry.user.toString() === targetUserId
+        );
+
+        if (existing) {
+          existing.canEdit = canEditBool;
+        } else {
+          f.sharedWith.push({
+            user: targetUserId,
+            canEdit: canEditBool,
+          });
+        }
+
+        await f.save();
+      },
+      async (file) => {
+        // For files, map canEdit → "read" | "write"
+        const perm = canEditBool ? "write" : "read";
+        const existing = (file.sharedWith || []).find(
+          (entry) => entry.user.toString() === targetUserId
+        );
+
+        if (existing) {
+          existing.permission = perm;
+        } else {
+          file.sharedWith.push({
+            user: targetUserId,
+            permission: perm,
+          });
+        }
+
+        await file.save();
+      }
+    );
+
+    const updatedRoot = await Folder.findById(folder._id);
+    res.json({ message: "Folder shared", folder: updatedRoot });
+  } catch (err) {
+    console.error("Error in PATCH /folders/:id/share:", err);
+    res.status(500).json({ message: "Error sharing folder" });
+  }
+});
+
+// PATCH /folders/:id/unshare
+// Remove a user from sharedWith for this folder and all its contents
+router.patch("/:id/unshare", ensureAuth, async (req, res) => {
+  try {
+    const ownerId = req.user._id;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: "userId is required" });
+    }
+
+    const folder = await findFolderByAnyId(req.params.id);
+    if (!folder) {
+      return res.status(404).json({ message: "Folder not found" });
+    }
+
+    if (!canWriteFolder(folder, ownerId)) {
+      return res
+        .status(403)
+        .json({ message: "You do not have permission to modify sharing" });
+    }
+
+    const targetUserId = userId.toString();
+
+    await walkFolderTree(
+      folder._id,
+      async (f) => {
+        f.sharedWith = (f.sharedWith || []).filter(
+          (entry) => entry.user.toString() !== targetUserId
+        );
+        await f.save();
+      },
+      async (file) => {
+        file.sharedWith = (file.sharedWith || []).filter(
+          (entry) => entry.user.toString() !== targetUserId
+        );
+        await file.save();
+      }
+    );
+
+    const updatedRoot = await Folder.findById(folder._id);
+    res.json({ message: "User unshared from folder", folder: updatedRoot });
+  } catch (err) {
+    console.error("Error in PATCH /folders/:id/unshare:", err);
+    res.status(500).json({ message: "Error unsharing folder" });
+  }
+});
+
+// PATCH /folders/:id/permission
+// Change canEdit for a user on this folder + everything inside
+router.patch("/:id/permission", ensureAuth, async (req, res) => {
+  try {
+    const ownerId = req.user._id;
+    const { userId, canEdit } = req.body;
+
+    if (!userId || typeof canEdit === "undefined") {
+      return res
+        .status(400)
+        .json({ message: "userId and canEdit are required" });
+    }
+
+    const folder = await findFolderByAnyId(req.params.id);
+    if (!folder) {
+      return res.status(404).json({ message: "Folder not found" });
+    }
+
+    if (!canWriteFolder(folder, ownerId)) {
+      return res
+        .status(403)
+        .json({ message: "You do not have permission to modify sharing" });
+    }
+
+    const targetUserId = userId.toString();
+    const canEditBool = !!canEdit;
+
+    await walkFolderTree(
+      folder._id,
+      async (f) => {
+        const entry = (f.sharedWith || []).find(
+          (e) => e.user.toString() === targetUserId
+        );
+        if (entry) {
+          entry.canEdit = canEditBool;
+          await f.save();
+        }
+      },
+      async (file) => {
+        const perm = canEditBool ? "write" : "read";
+        const entry = (file.sharedWith || []).find(
+          (e) => e.user.toString() === targetUserId
+        );
+        if (entry) {
+          entry.permission = perm;
+          await file.save();
+        }
+      }
+    );
+
+    const updatedRoot = await Folder.findById(folder._id);
+    res.json({ message: "Folder permissions updated", folder: updatedRoot });
+  } catch (err) {
+    console.error("Error in PATCH /folders/:id/permission:", err);
+    res.status(500).json({ message: "Error updating folder permission" });
+  }
+});
+
 
 
 module.exports = router;

@@ -49,7 +49,7 @@ import DetailsPanel from "./DetailsPanel.jsx";
 import ShareDialog from "./ShareDialog.jsx";
 
 function Homepage({ initialView = "MY_DRIVE" }) {
-  const { files, loading, selectedFiles, toggleFileSelection, selectAll, selectedFolders, toggleFolderSelection, clearSelection } = useFiles();
+  const { files, sharedFiles, loading, selectedFiles, toggleFileSelection, selectAll, selectedFolders, toggleFolderSelection, clearSelection, refreshFiles } = useFiles();
   const [detailsPanelOpen, setDetailsPanelOpen] = React.useState(false);
   const [detailsFile, setDetailsFile] = React.useState(null);
   const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
@@ -108,6 +108,9 @@ function Homepage({ initialView = "MY_DRIVE" }) {
 
   const [renameDialogOpen, setRenameDialogOpen] = React.useState(false);
   const [renameTarget, setRenameTarget] = React.useState(null); // folder we’re renaming
+  const [copyDialogOpen, setCopyDialogOpen] = React.useState(false);
+  const [copyTarget, setCopyTarget] = React.useState(null);
+
   const [newFolderDialogOpen, setNewFolderDialogOpen] =
     React.useState(false);
 
@@ -124,9 +127,18 @@ function Homepage({ initialView = "MY_DRIVE" }) {
 
   const handleFolderShare = () => {
     if (!selectedFolder) return;
-    // TODO: replace this with your real ShareDialog logic for folders
-    alert(`Sharing folder: ${selectedFolder.name}`);
+
+    const folderItem = {
+      ...selectedFolder,
+      isFolder: true,
+      id: selectedFolder.publicId || selectedFolder._id,
+      name: selectedFolder.name,
+    };
+
+    setFileToShare(folderItem);
+    setShareDialogOpen(true);
   };
+
 
   const handleFolderDetails = async () => {
     if (!selectedFolder) return;
@@ -204,12 +216,24 @@ function Homepage({ initialView = "MY_DRIVE" }) {
       ? breadcrumb[breadcrumb.length - 1]?._id
       : null;
 
+  const allFiles = React.useMemo(() => {
+    const map = new Map();
+
+    [...files, ...sharedFiles].forEach((file) => {
+      if (!file) return;
+      map.set(file.id, file); // avoid duplicates if same file appears in both
+    });
+
+    return Array.from(map.values());
+  }, [files, sharedFiles]);
+
+
   const filesInCurrentFolder = React.useMemo(() => {
     if (!isFolderView || !currentFolderObjectId) return [];
 
     const folderIdString = currentFolderObjectId.toString();
 
-    return files.filter((f) => {
+    return allFiles.filter((f) => {
       if (f.isDeleted) return false;
 
       // only My Drive files
@@ -225,7 +249,8 @@ function Homepage({ initialView = "MY_DRIVE" }) {
       if (!f.folderId) return false;
       return f.folderId.toString() === folderIdString;
     });
-  }, [files, isFolderView, currentFolderObjectId]);
+  }, [allFiles, isFolderView, currentFolderObjectId]);
+
 
 
 
@@ -429,34 +454,48 @@ function Homepage({ initialView = "MY_DRIVE" }) {
     }
   };
 
-  const handleCopyFolder = async () => {
+   // 1) Called when user clicks "Make a copy" in folder kebab menu
+  const handleCopyFolder = () => {
     if (!selectedFolder) return;
+    setCopyTarget(selectedFolder);
+    setCopyDialogOpen(true);
+    handleFolderMenuClose();
+  };
 
-    const defaultName = `${selectedFolder.name} (copy)`;
-    const newName = window.prompt("Name for the copy:", defaultName);
-    if (newName === null) return;
+  // 2) Called when user submits the dialog with a name
+  const handleFolderCopySubmit = async (newName) => {
+    if (!copyTarget) {
+      setCopyDialogOpen(false);
+      return;
+    }
 
-    const finalName =
-      newName && newName.trim() ? newName.trim() : defaultName;
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      setCopyDialogOpen(false);
+      return;
+    }
 
     try {
       setFoldersLoading(true);
       setFoldersError(null);
 
-      await copyFolder(selectedFolder.publicId || selectedFolder._id, {
-        name: finalName,
+      await copyFolder(copyTarget.publicId || copyTarget._id, {
+        name: trimmed,
         parentFolder: currentView === "MY_DRIVE" ? currentFolderId : null,
       });
 
       await loadFoldersForCurrentView();
+      await refreshFiles();
     } catch (err) {
       console.error("Failed to copy folder", err);
       setFoldersError(err.message || "Failed to copy folder");
     } finally {
       setFoldersLoading(false);
-      handleFolderMenuClose();
+      setCopyDialogOpen(false);
+      setCopyTarget(null);
     }
   };
+
 
   const suggestedFiles = recentFiles.map((file) => ({
     ...file,
@@ -1187,9 +1226,7 @@ function Homepage({ initialView = "MY_DRIVE" }) {
         onCopy={handleCopyFolder}
         isStarred={selectedFolder?.isStarred}
         isInTrash={currentView === "TRASH" || selectedFolder?.isDeleted}
-        onFolderShare={() => {
-          /* we'll wire real sharing later */
-        }}
+        onFolderShare={handleFolderShare}
         onFolderDetails={handleFolderDetails}
         onDownloadFolder={handleDownloadFolder}
       />
@@ -1251,6 +1288,21 @@ function Homepage({ initialView = "MY_DRIVE" }) {
         onSubmit={handleFolderRenameSubmit}
       />
     </Box >
+
+      <RenameDialog
+        open={copyDialogOpen}
+        file={copyTarget}
+        title="Make a copy"
+        submitLabel="Make copy"
+        placeholder="Copy name"
+        onClose={() => {
+          setCopyDialogOpen(false);
+          setCopyTarget(null);
+        }}
+        onSubmit={handleFolderCopySubmit}
+      />
+
+    </Box>
   );
 }
 

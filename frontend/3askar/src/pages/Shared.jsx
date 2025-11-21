@@ -1,12 +1,14 @@
 import React from "react";
 import { Box, Typography, IconButton, Checkbox } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import FolderIcon from "@mui/icons-material/Folder";
 import MenuBar from "../components/MenuBar";
 import BatchToolbar from "../components/BatchToolbar";
 import { useFiles } from "../context/fileContext.jsx";
 import FileKebabMenu from "../components/FileKebabMenu.jsx";
 import { isFolder } from "../utils/fileHelpers";
 import { getRowStyles } from "../styles/selectionTheme";
+import { useNavigate } from "react-router-dom";
 
 const DEFAULT_FILE_ICON =
   "https://www.gstatic.com/images/icons/material/system/2x/insert_drive_file_black_24dp.png";
@@ -45,6 +47,7 @@ function Shared() {
     selectAll,
   } = useFiles();
 
+  const navigate = useNavigate();
   const [sortField, setSortField] = React.useState("name");
   const [sortDirection, setSortDirection] = React.useState("asc");
   const [menuAnchorEl, setMenuAnchorEl] = React.useState(null);
@@ -158,6 +161,12 @@ function Shared() {
     return sortDirection === "asc" ? " ^" : " v";
   };
 
+  const handleItemClick = (file) => {
+    if (isFolder(file)) {
+      navigate(`/folders/${file.id}`);
+    }
+  };
+
   if (loading) {
     return <Typography sx={{ p: 2 }}>Loading shared files...</Typography>;
   }
@@ -233,6 +242,7 @@ function Shared() {
       ) : (
         sortedFiles.map((file) => {
           const selected = isItemSelected(file);
+          const isFolderItem = isFolder(file);
           return (
             <Box
               key={file.id}
@@ -244,37 +254,44 @@ function Shared() {
                 py: 1.5,
                 borderBottom: "1px solid #f1f3f4",
                 ...getRowStyles(selected),
+                cursor: isFolderItem ? "pointer" : "default",
               }}
+              onClick={() => handleItemClick(file)}
             >
               <Box sx={{ width: 40, display: "flex", justifyContent: "center" }}>
                 <Checkbox
                   size="small"
                   checked={selected}
                   onChange={(e) => { e.stopPropagation(); toggleSelectionFor(file); }}
+                  onClick={(e) => e.stopPropagation()}
                 />
               </Box>
               <Box sx={{ flex: 4, display: "flex", alignItems: "center", gap: 1.5 }}>
-              <img
-                src={file.icon || DEFAULT_FILE_ICON}
-                width={20}
-                height={20}
-                alt="file icon"
-              />
-              {file.name}
-            </Box>
+                {isFolderItem ? (
+                  <FolderIcon sx={{ color: "#5f6368", fontSize: 20 }} />
+                ) : (
+                  <img
+                    src={file.icon || DEFAULT_FILE_ICON}
+                    width={20}
+                    height={20}
+                    alt="file icon"
+                  />
+                )}
+                {file.name}
+              </Box>
 
-            <Box sx={{ flex: 3, color: "#5f6368" }}>
-              {file.owner || "Unknown"}
-            </Box>
+              <Box sx={{ flex: 3, color: "#5f6368" }}>
+                {file.owner || "Unknown"}
+              </Box>
 
-            <Box sx={{ flex: 2, color: "#5f6368" }}>
-              {formatDate(file.lastAccessedAt || file.uploadedAt)}
-            </Box>
+              <Box sx={{ flex: 2, color: "#5f6368" }}>
+                {formatDate(file.lastAccessedAt || file.uploadedAt)}
+              </Box>
 
-            <IconButton onClick={(event) => handleMenuButtonClick(event, file)}>
-              <MoreVertIcon sx={{ color: "#5f6368" }} />
-            </IconButton>
-          </Box>
+              <IconButton onClick={(event) => handleMenuButtonClick(event, file)}>
+                <MoreVertIcon sx={{ color: "#5f6368" }} />
+              </IconButton>
+            </Box>
           );
         })
       )}

@@ -166,10 +166,27 @@ const normalizeFile = (file) => {
 
 };
 
+const normalizeFolder = (folder) => ({
+  id: folder._id,
+  name: folder.name,
+  owner: folder.owner?.name || folder.owner?.email || "Unknown",
+  ownerId: folder.owner?._id || folder.owner,
+  updatedAt: folder.updatedAt,
+  lastAccessedAt: folder.updatedAt,
+  isStarred: folder.isStarred,
+  isDeleted: folder.isDeleted,
+  type: "folder",
+  size: 0,
+  location: folder.location || (folder.isDeleted ? "Trash" : "My Drive"),
+  path: folder.path,
+  sharedWith: folder.sharedWith,
+});
+
 export const FileProvider = ({ children }) => {
   const [files, setFiles] = useState([]);
   const [trashFiles, setTrashFiles] = useState([]);
   const [sharedFiles, setSharedFiles] = useState([]);
+  const [starredFiles, setStarredFiles] = useState([]); // Add starredFiles state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // FC-1: missing ref for files list used in effects and actions
@@ -259,27 +276,48 @@ export const FileProvider = ({ children }) => {
 
     try {
       logEvent("fetchCollections:requesting", {
-        endpoints: ["/files", "/files/list/trash", "/files/shared"],
+        endpoints: ["/files", "/files/list/trash", "/files/shared", "/folders/shared", "/folders/trash"],
       });
-      const [owned, trash, shared] = await Promise.all([
+
+      // Import these dynamically or ensure they are imported at top
+      const { getSharedFolders, getTrashFolders, getStarredFolders } = await import("../api/foldersApi");
+
+      const [owned, trash, shared, sharedFoldersData, trashFoldersData, starredFoldersData] = await Promise.all([
         apiClient.get("/files"),
         apiClient.get("/files/list/trash"),
         apiClient.get("/files/shared"),
+        getSharedFolders(),
+        getTrashFolders(),
+        getStarredFolders(),
       ]);
 
       const ownedNormalized = (owned.data || []).map(normalizeFile).filter(Boolean);
       const trashNormalized = (trash.data || []).map(normalizeFile).filter(Boolean);
       const sharedNormalized = (shared.data || []).map(normalizeFile).filter(Boolean);
 
+      const sharedFoldersNormalized = (sharedFoldersData || []).map(normalizeFolder);
+      const trashFoldersNormalized = (trashFoldersData || []).map(normalizeFolder);
+      const starredFoldersNormalized = (starredFoldersData || []).map(normalizeFolder);
+
       setFiles(ownedNormalized);
-      setTrashFiles(trashNormalized);
-      setSharedFiles(sharedNormalized);
+
+      // Merge files and folders for Trash and Shared views
+      setTrashFiles([...trashNormalized, ...trashFoldersNormalized]);
+      setSharedFiles([...sharedNormalized, ...sharedFoldersNormalized]);
+
+      // Merge starred files and folders
+      const starredFilesList = ownedNormalized.filter(f => f.isStarred);
+      const starredSharedFilesList = sharedNormalized.filter(f => f.isStarred);
+      setStarredFiles([...starredFilesList, ...starredSharedFilesList, ...starredFoldersNormalized]);
 
       const validIds = new Set([
         ...ownedNormalized.map((f) => f.id),
         ...trashNormalized.map((f) => f.id),
         ...sharedNormalized.map((f) => f.id),
+        ...trashFoldersNormalized.map((f) => f.id),
+        ...sharedFoldersNormalized.map((f) => f.id),
       ]);
+
       setSelectedFiles((prev) => {
         const next = new Set();
         prev.forEach((id) => {
@@ -287,13 +325,15 @@ export const FileProvider = ({ children }) => {
         });
         return next;
       });
-      setSelectedFolders(new Set());
+      // We might want to validate selected folders too, but for now clearing is safer or just leave as is
+      // setSelectedFolders(new Set()); 
+
       finish({
         mode: "api",
         counts: {
           files: owned.data?.length ?? 0,
-          trash: trash.data?.length ?? 0,
-          shared: shared.data?.length ?? 0,
+          trash: (trash.data?.length ?? 0) + (trashFoldersData?.length ?? 0),
+          shared: (shared.data?.length ?? 0) + (sharedFoldersData?.length ?? 0),
         },
       });
       setError(null);
@@ -329,19 +369,37 @@ export const FileProvider = ({ children }) => {
 
   const toggleStar = useCallback(async (id) => {
     const finish = startSpan("toggleStar", { id });
-    const existing = filesRef.current.find((file) => file.id === id);
-    if (!existing) {
-      finish({ status: "skip-missing-file" });
-      return;
+
+    // Check files, shared, and starred lists
+    let existing = filesRef.current.find((file) => file.id === id);
+    if (!existing) existing = sharedFiles.find((file) => file.id === id);
+    if (!existing) existing = starredFiles.find((file) => file.id === id);
+
+    // If still not found, it might be a folder from My Drive that isn't in files/shared
+    // We will try to toggle it optimistically if we can guess it's a folder, or just call API and refresh.
+    // Since we don't have the object, we can't optimistically update easily without knowing if it's a folder.
+    // But wait, if the user clicked it, they probably saw it.
+    // If it's from Homepage (My Drive), it's not in fileContext state.
+    // We will proceed with API call and then refresh.
+
+    const isFolderItem = existing?.type === "folder";
+    const nextState = existing ? !existing.isStarred : true; // Assumption if missing
+
+    if (existing) {
+      const updateList = (list) => list.map(f => f.id === id ? { ...f, isStarred: nextState } : f);
+      setFiles(prev => updateList(prev));
+      setSharedFiles(prev => updateList(prev));
+      setStarredFiles(prev => {
+        if (nextState) {
+          // Add to starred if not present
+          if (prev.find(f => f.id === id)) return updateList(prev);
+          return [...prev, { ...existing, isStarred: true }];
+        } else {
+          // Remove from starred
+          return prev.filter(f => f.id !== id);
+        }
+      });
     }
-
-    const nextState = !existing.isStarred;
-
-    setFiles((prev) =>
-      prev.map((file) =>
-        file.id === id ? { ...file, isStarred: nextState } : file
-      )
-    );
 
     if (USE_MOCK_DATA) {
       finish({ status: "mock", nextState });
@@ -349,14 +407,49 @@ export const FileProvider = ({ children }) => {
     }
 
     try {
-      await apiClient.patch(`/files/${id}/star`, { isStarred: nextState });
+      if (isFolderItem) {
+        await apiClient.patch(`/folders/${id}`, { isStarred: nextState });
+      } else {
+        // If we don't know if it's a folder or file (e.g. from Homepage), we might need to try both or check ID format?
+        // But usually toggleStar is called with an object in other contexts. 
+        // Here it's called with ID. 
+        // If existing is null, we can't know. 
+        // However, if it was in My Drive (Homepage), Homepage handles its own state?
+        // Homepage uses `updateFolder` directly. 
+        // But Starred page uses `toggleStar` from context.
+        // If Starred page shows it, it MUST be in `starredFiles`.
+        // So `existing` should be found if it was in Starred page.
+
+        // If we are in My Drive and star a file, `Homepage` might call `toggleStar`?
+        // Homepage has `handleToggleStarFolder` which calls `updateFolder`.
+        // Homepage has `FileKebabMenu` which calls `toggleStar` (from context) for FILES.
+        // So `toggleStar` in context is primarily for FILES.
+        // BUT `Starred.jsx` uses `FileKebabMenu` which calls `toggleStar` for both files and folders (if configured).
+        // `Starred.jsx` passes `selectedFile` (which can be folder) to `FileKebabMenu`.
+        // `FileKebabMenu` calls `toggleStar(selectedFile.id)`.
+        // So `toggleStar` MUST handle folders if called from Starred view.
+
+        if (isFolderItem) {
+          await apiClient.patch(`/folders/${id}`, { isStarred: nextState });
+        } else {
+          // Default to file if we found it as file or if we don't know (fallback)
+          // Actually if we don't find it, we can't know.
+          // But if it's from Starred view, it IS in starredFiles.
+          await apiClient.patch(`/files/${id}/star`, { isStarred: nextState });
+        }
+      }
       finish({ status: "ok", nextState });
     } catch (err) {
-      setFiles((prev) =>
-        prev.map((file) =>
-          file.id === id ? { ...file, isStarred: existing.isStarred } : file
-        )
-      );
+      // Revert
+      if (existing) {
+        const revertList = (list) => list.map(f => f.id === id ? { ...f, isStarred: !nextState } : f);
+        setFiles(prev => revertList(prev));
+        setSharedFiles(prev => revertList(prev));
+        setStarredFiles(prev => {
+          if (nextState) return prev.filter(f => f.id !== id);
+          return [...prev, { ...existing, isStarred: true }];
+        });
+      }
 
       setError("Unable to update star. Try again.");
       logEvent("toggleStar:error", {
@@ -366,18 +459,32 @@ export const FileProvider = ({ children }) => {
       });
       finish({ status: "error", nextState, error: err.message });
     }
-  }, []);
+  }, [sharedFiles, starredFiles]);
 
   const moveToTrash = useCallback(async (id) => {
     const finish = startSpan("moveToTrash", { id });
-    const existing = filesRef.current.find((file) => file.id === id);
-    if (!existing) {
-      finish({ status: "skip-missing-file" });
-      return;
-    }
 
-    setFiles((prev) => prev.filter((file) => file.id !== id));
-    setTrashFiles((prev) => [{ ...existing, isDeleted: true }, ...prev]);
+    // Check in files first, then shared files, then starred files
+    let existing = filesRef.current.find((file) => file.id === id);
+    if (!existing) existing = sharedFiles.find((file) => file.id === id);
+    if (!existing) existing = starredFiles.find((file) => file.id === id);
+
+    // If still not found, it might be a folder from My Drive (Homepage)
+    // We can't optimistically update UI for My Drive here (Homepage handles it),
+    // BUT we need to update trashFiles so it appears in Trash view.
+    // Since we don't have the object, we can't add it to trashFiles yet.
+    // We will have to rely on fetching or refreshing.
+    // OR we can try to fetch it first? No, that's slow.
+    // We will just proceed with API call and then refresh collections.
+
+    const isFolderItem = existing?.type === "folder";
+
+    if (existing) {
+      setFiles((prev) => prev.filter((file) => file.id !== id));
+      setSharedFiles((prev) => prev.filter((file) => file.id !== id));
+      setStarredFiles((prev) => prev.filter((file) => file.id !== id));
+      setTrashFiles((prev) => [{ ...existing, isDeleted: true }, ...prev]);
+    }
 
     if (USE_MOCK_DATA) {
       finish({ status: "mock" });
@@ -385,16 +492,52 @@ export const FileProvider = ({ children }) => {
     }
 
     try {
-      await apiClient.patch(`/files/${id}/trash`, { isDeleted: true });
+      // If we don't know if it's a folder (missing existing), we have a problem.
+      // But usually moveToTrash is called on selected items.
+      // If called from Homepage, Homepage handles the API call?
+      // Homepage.jsx has `handleTrashFolder` which calls `updateFolder` (API).
+      // It does NOT call `moveToTrash` from context.
+      // So `moveToTrash` in context is used by `FileKebabMenu` (for files) and `Bin` (restore).
+      // If `FileKebabMenu` is used on a folder in My Drive, it calls `onTrash` (if provided) or `moveToTrash`.
+      // In `Homepage.jsx`, `FileKebabMenu` is used for FILES. Folders use `handleFolderMenuOpen`.
+      // So `moveToTrash` is mostly for files, OR folders in Shared/Starred views.
+      // If in Shared/Starred, `existing` should be found.
+
+      if (isFolderItem) {
+        await apiClient.patch(`/folders/${id}`, { isDeleted: true });
+      } else {
+        // If we didn't find it, assume file? Or try both?
+        // Safest is to assume file if not found, or handle error.
+        // But if it was a folder in Shared/Starred, we found it.
+        await apiClient.patch(`/files/${id}/trash`, { isDeleted: true });
+      }
+
+      // If we didn't find it locally (e.g. some edge case), refresh to be sure
+      if (!existing) {
+        await fetchCollections();
+      }
+
       finish({ status: "ok" });
     } catch {
-      setFiles((prev) => [existing, ...prev]);
-      setTrashFiles((prev) => prev.filter((file) => file.id !== id));
-      setError("Unable to move file to bin.");
+      // Revert state on error
+      if (existing) {
+        if (existing.location === "Shared with me" || (existing.sharedWith && existing.sharedWith.length > 0)) {
+          setSharedFiles((prev) => [existing, ...prev]);
+        } else {
+          if (!isFolderItem) setFiles((prev) => [existing, ...prev]);
+        }
+        // Also restore to starred if it was starred
+        if (existing.isStarred) {
+          setStarredFiles((prev) => [existing, ...prev]);
+        }
+
+        setTrashFiles((prev) => prev.filter((file) => file.id !== id));
+      }
+      setError("Unable to move item to bin.");
       logEvent("moveToTrash:error", { id });
       finish({ status: "error" });
     }
-  }, []);
+  }, [sharedFiles, starredFiles]);
 
   const restoreFromBin = useCallback(async (id) => {
     const finish = startSpan("restoreFromBin", { id });
@@ -404,8 +547,20 @@ export const FileProvider = ({ children }) => {
       return;
     }
 
+    const isFolderItem = existing.type === "folder";
+
     setTrashFiles((prev) => prev.filter((file) => file.id !== id));
-    setFiles((prev) => [{ ...existing, isDeleted: false }, ...prev]);
+
+    // We need to decide where to put it back. 
+    // For simplicity, if it was shared, put in shared, else files.
+    // Or just rely on refresh. But optimistic update is better.
+    if (existing.location === "Shared with me" || (existing.sharedWith && existing.sharedWith.length > 0 && existing.ownerId !== currentUserId)) {
+      setSharedFiles((prev) => [{ ...existing, isDeleted: false }, ...prev]);
+    } else {
+      if (!isFolderItem) {
+        setFiles((prev) => [{ ...existing, isDeleted: false }, ...prev]);
+      }
+    }
 
     if (USE_MOCK_DATA) {
       finish({ status: "mock" });
@@ -413,16 +568,26 @@ export const FileProvider = ({ children }) => {
     }
 
     try {
-      await apiClient.patch(`/files/${id}/trash`, { isDeleted: false });
+      if (isFolderItem) {
+        await apiClient.patch(`/folders/${id}`, { isDeleted: false });
+      } else {
+        await apiClient.patch(`/files/${id}/trash`, { isDeleted: false });
+      }
       finish({ status: "ok" });
     } catch {
       setTrashFiles((prev) => [existing, ...prev]);
-      setFiles((prev) => prev.filter((file) => file.id !== id));
-      setError("Unable to restore file.");
+      if (existing.location === "Shared with me" || (existing.sharedWith && existing.sharedWith.length > 0 && existing.ownerId !== currentUserId)) {
+        setSharedFiles((prev) => prev.filter((file) => file.id !== id));
+      } else {
+        if (!isFolderItem) {
+          setFiles((prev) => prev.filter((file) => file.id !== id));
+        }
+      }
+      setError("Unable to restore item.");
       logEvent("restoreFromBin:error", { id });
       finish({ status: "error" });
     }
-  }, []);
+  }, [currentUserId]);
 
   const deleteForever = useCallback(async (id) => {
     const finish = startSpan("deleteForever", { id });
@@ -432,6 +597,8 @@ export const FileProvider = ({ children }) => {
       return;
     }
 
+    const isFolderItem = existing.type === "folder";
+
     setTrashFiles((prev) => prev.filter((file) => file.id !== id));
 
     if (USE_MOCK_DATA) {
@@ -440,11 +607,15 @@ export const FileProvider = ({ children }) => {
     }
 
     try {
-      await apiClient.delete(`/files/${id}/permanent`);
+      if (isFolderItem) {
+        await apiClient.delete(`/folders/${id}/permanent`);
+      } else {
+        await apiClient.delete(`/files/${id}/permanent`);
+      }
       finish({ status: "ok" });
     } catch {
       setTrashFiles((prev) => [existing, ...prev]);
-      setError("Unable to delete file permanently.");
+      setError("Unable to delete item permanently.");
       logEvent("deleteForever:error", { id });
       finish({ status: "error" });
     }
@@ -670,7 +841,7 @@ export const FileProvider = ({ children }) => {
           try {
             const txt = await res.clone().text();
             if (txt) message = txt.slice(0, 200);
-          } catch {}
+          } catch { }
         }
         setError(message);
         finish({ status: "error", error: message, httpStatus: res.status });
@@ -1116,6 +1287,8 @@ export const FileProvider = ({ children }) => {
           return sharedFiles;
         case "starred":
           return combinedFiles;
+        case "trash":
+          return trashFiles;
         case "anywhere":
           return combinedFiles;
         default:
@@ -1264,6 +1437,7 @@ export const FileProvider = ({ children }) => {
         files,
         trashFiles,
         sharedFiles,
+        starredFiles,
         loading,
         error,
         uploading,

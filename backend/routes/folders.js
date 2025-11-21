@@ -205,7 +205,7 @@ router.get("/", ensureAuth, async (req, res) => {
       }).sort({ name: 1 });
 
       // ensure all children have publicId before sending back
-      
+
 
       return res.json(folders);
     }
@@ -254,7 +254,7 @@ router.patch("/:id", ensureAuth, async (req, res) => {
       description,       // update description
       location           // update location (MY_DRIVE/TRASH/SHARED)
     } = req.body;
-    
+
     const folder = await findFolderByAnyId(folderId); //fetch from db
     if (!folder) {
       return res.status(404).json({ message: "Folder not found" });
@@ -453,11 +453,11 @@ router.get("/search", ensureAuth, async (req, res) => {
 // Breadcrumb for a folder
 router.get("/:id/breadcrumb", ensureAuth, async (req, res) => {
   try {
-    
+
     const folderId = req.params.id;   // from URL /folders/:id/breadcrumb
     const userId = req.user._id;      // set by ensureAuth
 
-        //oad the current folder
+    //oad the current folder
     let folder = await findFolderByAnyId(folderId);
 
     if (!folder) {
@@ -471,7 +471,7 @@ router.get("/:id/breadcrumb", ensureAuth, async (req, res) => {
         .json({ message: "You do not have permission to view this folder" });
     }
 
-        const chain = [];
+    const chain = [];
 
     // Climb up: current folder → parent → grandparent → ...
     let current = folder;
@@ -964,5 +964,48 @@ router.patch("/:id/permission", ensureAuth, async (req, res) => {
 });
 
 
+
+// DELETE /folders/:id/permanent
+// Permanently delete a folder and all its contents
+router.delete("/:id/permanent", ensureAuth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const folderId = req.params.id;
+
+    const folder = await findFolderByAnyId(folderId);
+    if (!folder) {
+      return res.status(404).json({ message: "Folder not found" });
+    }
+
+    if (!canWriteFolder(folder, userId)) {
+      return res
+        .status(403)
+        .json({ message: "You do not have permission to delete this folder" });
+    }
+
+    // Use walkFolderTree to delete everything
+    await walkFolderTree(
+      folder._id,
+      async (f) => {
+        await Folder.findByIdAndDelete(f._id);
+      },
+      async (file) => {
+        if (file.gridFsId) {
+          try {
+            await gridfsBucket.delete(file.gridFsId);
+          } catch (e) {
+            console.warn(`Failed to delete GridFS file ${file.gridFsId}:`, e.message);
+          }
+        }
+        await File.findByIdAndDelete(file._id);
+      }
+    );
+
+    res.json({ message: "Folder deleted permanently" });
+  } catch (err) {
+    console.error("Error deleting folder permanently:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 module.exports = router;

@@ -196,6 +196,10 @@ function Homepage({ initialView = "MY_DRIVE" }) {
   }, [folderId]);
 
   useEffect(() => {
+    setCurrentView(initialView);
+  }, [initialView]);
+
+  useEffect(() => {
     clearSelection();
   }, [currentView, currentFolderId, clearSelection]);
 
@@ -207,8 +211,9 @@ function Homepage({ initialView = "MY_DRIVE" }) {
   const [foldersLoading, setFoldersLoading] = React.useState(true);
   const [foldersError, setFoldersError] = React.useState(null);
 
+  const isHomeView = currentView === "HOME";
   const isMyDriveRoot = currentView === "MY_DRIVE" && currentFolderId === null;
-  const isFolderView = currentView === "MY_DRIVE" && currentFolderId !== null;
+  const isFolderView = (currentView === "MY_DRIVE" || currentView === "HOME") && currentFolderId !== null;
 
   // last breadcrumb item is the current folder
   const currentFolderObjectId =
@@ -229,9 +234,10 @@ function Homepage({ initialView = "MY_DRIVE" }) {
 
 
   const filesInCurrentFolder = React.useMemo(() => {
-    if (!isFolderView || !currentFolderObjectId) return [];
+    // We need files for unified list if we are in MY_DRIVE view (either root or subfolder)
+    if (currentView !== "MY_DRIVE") return [];
 
-    const folderIdString = currentFolderObjectId.toString();
+    const folderIdString = currentFolderObjectId ? currentFolderObjectId.toString() : null;
 
     return allFiles.filter((f) => {
       if (f.isDeleted) return false;
@@ -246,10 +252,33 @@ function Homepage({ initialView = "MY_DRIVE" }) {
         return false;
       }
 
-      if (!f.folderId) return false;
-      return f.folderId.toString() === folderIdString;
+      if (currentFolderId) {
+        // Subfolder
+        if (!f.folderId) return false;
+        return f.folderId.toString() === folderIdString;
+      } else {
+        // Root
+        return !f.folderId;
+      }
     });
-  }, [allFiles, isFolderView, currentFolderObjectId]);
+  }, [allFiles, currentView, currentFolderId, currentFolderObjectId]);
+
+  const unifiedItems = React.useMemo(() => {
+    if (currentView !== "MY_DRIVE") return [];
+
+    const folders = rootFolders.map(f => ({ ...f, type: 'folder' }));
+    const files = filesInCurrentFolder.map(f => ({ ...f, type: 'file' }));
+
+    // Sort: Folders first, then files. Within each type, sort by name.
+    return [...folders, ...files].sort((a, b) => {
+      if (a.type === b.type) {
+        return (a.name || "").localeCompare(b.name || "");
+      }
+      return a.type === 'folder' ? -1 : 1;
+    });
+  }, [rootFolders, filesInCurrentFolder, currentView]);
+
+
 
 
 
@@ -261,7 +290,7 @@ function Homepage({ initialView = "MY_DRIVE" }) {
 
       let folders;
 
-      if (currentView === "MY_DRIVE") {
+      if (currentView === "MY_DRIVE" || currentView === "HOME") {
         folders = await getFolders(currentFolderId);
       } else if (currentView === "STARRED") {
         folders = await getStarredFolders();
@@ -312,7 +341,11 @@ function Homepage({ initialView = "MY_DRIVE" }) {
     }
 
     if (currentFolderId === null) {
-      setBreadcrumb([{ _id: null, name: "My Drive" }]);
+      if (currentView === "HOME") {
+        setBreadcrumb([{ _id: null, name: "Home" }]);
+      } else {
+        setBreadcrumb([{ _id: null, name: "My Drive" }]);
+      }
       setBreadcrumbLoading(false);
       return;
     }
@@ -399,6 +432,7 @@ function Homepage({ initialView = "MY_DRIVE" }) {
         });
 
         await loadFoldersForCurrentView();
+        await refreshFiles();
       } catch (err) {
         console.error("Failed to restore folder", err);
         setFoldersError(err.message || "Failed to restore folder");
@@ -421,6 +455,7 @@ function Homepage({ initialView = "MY_DRIVE" }) {
         });
 
         await loadFoldersForCurrentView();
+        await refreshFiles();
       } catch (err) {
         console.error("Failed to remove folder", err);
         setFoldersError(err.message || "Failed to remove folder");
@@ -445,6 +480,7 @@ function Homepage({ initialView = "MY_DRIVE" }) {
       });
 
       await loadFoldersForCurrentView();
+      await refreshFiles();
     } catch (err) {
       console.error("Failed to update star", err);
       setFoldersError(err.message || "Failed to update star");
@@ -454,7 +490,7 @@ function Homepage({ initialView = "MY_DRIVE" }) {
     }
   };
 
-   // 1) Called when user clicks "Make a copy" in folder kebab menu
+  // 1) Called when user clicks "Make a copy" in folder kebab menu
   const handleCopyFolder = () => {
     if (!selectedFolder) return;
     setCopyTarget(selectedFolder);
@@ -549,9 +585,9 @@ function Homepage({ initialView = "MY_DRIVE" }) {
             textDecoration: "underline",
             width: "fit-content",
           }}
-          onClick={() => navigate("/mydrive")}
+          onClick={() => navigate(currentView === "HOME" ? "/" : "/mydrive")}
         >
-          ← My Drive
+          {currentView === "HOME" ? "← Home" : "← My Drive"}
         </Typography>
       )}
 
@@ -629,160 +665,162 @@ function Homepage({ initialView = "MY_DRIVE" }) {
         <MenuBar visibleFiles={recentFiles} />
       )}
 
-      {/* FOLDERS ACCORDION */}
-      <Accordion
-        defaultExpanded
-        disableGutters
-        square
-        sx={{
-          backgroundColor: "transparent",
-          boxShadow: "none",
-          "&:before": { display: "none" },
-        }}
-      >
-        <AccordionSummary
-          expandIcon={<ExpandMoreIcon sx={{ color: "#5f6368" }} />}
+      {/* FOLDERS ACCORDION - ONLY FOR HOME OR OTHER VIEWS, NOT MY_DRIVE (UNIFIED) */}
+      {currentView !== "MY_DRIVE" && (
+        <Accordion
+          defaultExpanded
+          disableGutters
+          square
           sx={{
-            backgroundColor: "#ffffff",
-            borderRadius: "9999px",
-            px: 1.5,
-            py: 0.5,
-            width: "fit-content",
-            transition: "all 0.2s ease",
-            "& .MuiAccordionSummary-content": {
-              marginY: 0,
-              marginLeft: 0.5,
-              display: "flex",
-              alignItems: "center",
-              gap: 1.5,
-            },
-            "&:hover": {
-              backgroundColor: "#e8f0fe",
-              "& .MuiTypography-root": { color: "#1a73e8" },
-              "& .MuiSvgIcon-root": { color: "#1a73e8" },
-            },
+            backgroundColor: "transparent",
+            boxShadow: "none",
+            "&:before": { display: "none" },
           }}
         >
-          <Typography sx={{ fontWeight: 600, color: "#202124" }}>
-            {isMyDriveRoot ? "Suggested folders" : "Folders"}
-          </Typography>
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon sx={{ color: "#5f6368" }} />}
+            sx={{
+              backgroundColor: "#ffffff",
+              borderRadius: "9999px",
+              px: 1.5,
+              py: 0.5,
+              width: "fit-content",
+              transition: "all 0.2s ease",
+              "& .MuiAccordionSummary-content": {
+                marginY: 0,
+                marginLeft: 0.5,
+                display: "flex",
+                alignItems: "center",
+                gap: 1.5,
+              },
+              "&:hover": {
+                backgroundColor: "#e8f0fe",
+                "& .MuiTypography-root": { color: "#1a73e8" },
+                "& .MuiSvgIcon-root": { color: "#1a73e8" },
+              },
+            }}
+          >
+            <Typography sx={{ fontWeight: 600, color: "#202124" }}>
+              {isHomeView ? "Suggested folders" : "Folders"}
+            </Typography>
 
-        </AccordionSummary>
+          </AccordionSummary>
 
-        <AccordionDetails sx={{ backgroundColor: "#ffffff", px: 0 }}>
-          <Grid container spacing={2}>
-            {foldersLoading && (
-              <Grid item xs={12}>
-                <Typography sx={{ color: "#5f6368", px: 1 }}>
-                  Loading folders...
-                </Typography>
-              </Grid>
-            )}
+          <AccordionDetails sx={{ backgroundColor: "#ffffff", px: 0 }}>
+            <Grid container spacing={2}>
+              {foldersLoading && (
+                <Grid item xs={12}>
+                  <Typography sx={{ color: "#5f6368", px: 1 }}>
+                    Loading folders...
+                  </Typography>
+                </Grid>
+              )}
 
-            {foldersError && !foldersLoading && (
-              <Grid item xs={12}>
-                <Typography sx={{ color: "red", px: 1 }}>
-                  {foldersError}
-                </Typography>
-              </Grid>
-            )}
+              {foldersError && !foldersLoading && (
+                <Grid item xs={12}>
+                  <Typography sx={{ color: "red", px: 1 }}>
+                    {foldersError}
+                  </Typography>
+                </Grid>
+              )}
 
-            {!foldersLoading && !foldersError && rootFolders.length === 0 && (
-              <Grid item xs={12}>
-                <Typography sx={{ color: "#5f6368", px: 1 }}>
-                  {isMyDriveRoot
-                    ? "No folders in My Drive yet."
-                    : "This folder is empty."}
-                </Typography>
-              </Grid>
-            )}
+              {!foldersLoading && !foldersError && rootFolders.length === 0 && (
+                <Grid item xs={12}>
+                  <Typography sx={{ color: "#5f6368", px: 1 }}>
+                    {isHomeView
+                      ? "No folders in Home yet."
+                      : "This folder is empty."}
+                  </Typography>
+                </Grid>
+              )}
 
-            {!foldersLoading &&
-              !foldersError &&
-              rootFolders.map((folder) => (
-                <Grid
-                  item
-                  xs={12}
-                  sm={6}
-                  md={4}
-                  key={folder.publicId || folder._id}
-                >
-                  <Paper
-                    elevation={0}
-                    onClick={() =>
-                      handleFolderOpen(folder.publicId || folder._id)
-                    }
-                    sx={{
-                      position: "relative",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 2,
-                      p: 2,
-                      border: "1px solid #e0e0e0",
-                      borderRadius: 3,
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      backgroundColor: selectedFolders.has(folder.publicId || folder._id) ? "#e8f0fe" : "#ffffff",
-                      "&:hover": {
-                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.15)",
-                        transform: "translateY(-2px)",
-                        "& .folder-checkbox": { opacity: 1 },
-                      },
-                      height: "25%",
-                    }}
+              {!foldersLoading &&
+                !foldersError &&
+                rootFolders.map((folder) => (
+                  <Grid
+                    item
+                    xs={12}
+                    sm={6}
+                    md={4}
+                    key={folder.publicId || folder._id}
                   >
-                    <Box
-                      className="folder-checkbox"
-                      onClick={(e) => e.stopPropagation()}
+                    <Paper
+                      elevation={0}
+                      onClick={() =>
+                        handleFolderOpen(folder.publicId || folder._id)
+                      }
                       sx={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        opacity: selectedFolders.has(folder.publicId || folder._id) ? 1 : 0,
-                        transition: "opacity 0.2s",
-                        zIndex: 1,
+                        position: "relative",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 2,
+                        p: 2,
+                        border: "1px solid #e0e0e0",
+                        borderRadius: 3,
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        backgroundColor: selectedFolders.has(folder.publicId || folder._id) ? "#e8f0fe" : "#ffffff",
+                        "&:hover": {
+                          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.15)",
+                          transform: "translateY(-2px)",
+                          "& .folder-checkbox": { opacity: 1 },
+                        },
+                        height: "25%",
                       }}
                     >
-                      <Checkbox
-                        size="small"
-                        checked={selectedFolders.has(folder.publicId || folder._id)}
-                        onChange={() => toggleFolderSelection(folder.publicId || folder._id)}
-                      />
-                    </Box>
-
-                    <FolderIcon sx={{ fontSize: 36, color: "#4285f4" }} />
-
-                    <Box sx={{ flex: 1 }}>
-                      <Typography sx={{ fontWeight: 600 }}>
-                        {folder.name}
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ color: "#5f6368" }}
+                      <Box
+                        className="folder-checkbox"
+                        onClick={(e) => e.stopPropagation()}
+                        sx={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          opacity: selectedFolders.has(folder.publicId || folder._id) ? 1 : 0,
+                          transition: "opacity 0.2s",
+                          zIndex: 1,
+                        }}
                       >
-                        {folder.location === "TRASH"
-                          ? "In Trash"
-                          : folder.location === "SHARED"
-                            ? "In Shared with me"
-                            : "In My Drive"}
-                      </Typography>
-                    </Box>
+                        <Checkbox
+                          size="small"
+                          checked={selectedFolders.has(folder.publicId || folder._id)}
+                          onChange={() => toggleFolderSelection(folder.publicId || folder._id)}
+                        />
+                      </Box>
 
-                    <IconButton
-                      size="small"
-                      onClick={(e) => handleFolderMenuOpen(e, folder)}
-                    >
-                      <MoreVertIcon sx={{ color: "#5f6368" }} />
-                    </IconButton>
-                  </Paper>
-                </Grid>
-              ))}
-          </Grid>
-        </AccordionDetails>
-      </Accordion>
+                      <FolderIcon sx={{ fontSize: 36, color: "#4285f4" }} />
 
-      {/* FILES IN CURRENT FOLDER – only in folder view */}
-      {isFolderView && (
+                      <Box sx={{ flex: 1 }}>
+                        <Typography sx={{ fontWeight: 600 }}>
+                          {folder.name}
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{ color: "#5f6368" }}
+                        >
+                          {folder.location === "TRASH"
+                            ? "In Trash"
+                            : folder.location === "SHARED"
+                              ? "In Shared with me"
+                              : "In My Drive"}
+                        </Typography>
+                      </Box>
+
+                      <IconButton
+                        size="small"
+                        onClick={(e) => handleFolderMenuOpen(e, folder)}
+                      >
+                        <MoreVertIcon sx={{ color: "#5f6368" }} />
+                      </IconButton>
+                    </Paper>
+                  </Grid>
+                ))}
+            </Grid>
+          </AccordionDetails>
+        </Accordion>
+      )}
+
+      {/* FILES IN CURRENT FOLDER – only in folder view AND NOT MY_DRIVE (since MY_DRIVE uses unified list) */}
+      {isFolderView && currentView !== "MY_DRIVE" && (
         <Accordion
           defaultExpanded
           disableGutters
@@ -968,9 +1006,9 @@ function Homepage({ initialView = "MY_DRIVE" }) {
 
 
 
-      {/* SUGGESTED FILES ACCORDION – ONLY ON MY DRIVE ROOT */}
+      {/* SUGGESTED FILES ACCORDION – ONLY ON HOME VIEW */}
       {
-        isMyDriveRoot && (
+        isHomeView && (
           <Accordion
             defaultExpanded
             disableGutters
@@ -1214,6 +1252,160 @@ function Homepage({ initialView = "MY_DRIVE" }) {
           </Accordion >
         )
       }
+
+      {/* UNIFIED LIST VIEW - ONLY FOR MY_DRIVE */}
+      {currentView === "MY_DRIVE" && (
+        <Box sx={{ mt: 2 }}>
+          {/* Header Row */}
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              px: 2,
+              py: 1,
+              borderBottom: "1px solid #e0e0e0",
+              color: "#5f6368",
+              fontSize: 14,
+              fontWeight: 500,
+            }}
+          >
+            <Box sx={{ width: 40, display: "flex", justifyContent: "center" }}>
+              <Checkbox
+                size="small"
+                checked={
+                  unifiedItems.length > 0 &&
+                  unifiedItems.every((item) =>
+                    item.type === 'folder' ? selectedFolders.has(item.publicId || item._id) : selectedFiles.has(item.id)
+                  )
+                }
+                indeterminate={
+                  unifiedItems.some((item) =>
+                    item.type === 'folder' ? selectedFolders.has(item.publicId || item._id) : selectedFiles.has(item.id)
+                  ) &&
+                  !unifiedItems.every((item) =>
+                    item.type === 'folder' ? selectedFolders.has(item.publicId || item._id) : selectedFiles.has(item.id)
+                  )
+                }
+                onChange={() => {
+                  const allSelected = unifiedItems.every((item) =>
+                    item.type === 'folder' ? selectedFolders.has(item.publicId || item._id) : selectedFiles.has(item.id)
+                  );
+
+                  if (allSelected) {
+                    clearSelection();
+                  } else {
+                    // Select all
+                    const fileIds = [];
+                    const folderIds = [];
+                    unifiedItems.forEach(item => {
+                      if (item.type === 'folder') folderIds.push(item.publicId || item._id);
+                      else fileIds.push(item.id);
+                    });
+                    // We need to call selectAll with objects? No, context selectAll takes items.
+                    // But context selectAll logic separates them.
+                    // We can manually select all.
+                    unifiedItems.forEach(item => {
+                      if (item.type === 'folder') {
+                        if (!selectedFolders.has(item.publicId || item._id)) toggleFolderSelection(item.publicId || item._id);
+                      } else {
+                        if (!selectedFiles.has(item.id)) toggleFileSelection(item.id);
+                      }
+                    });
+                  }
+                }}
+              />
+            </Box>
+            <Box sx={{ flex: 3 }}>Name</Box>
+            <Box sx={{ flex: 2 }}>Owner</Box>
+            <Box sx={{ flex: 2 }}>Last modified</Box>
+            <Box sx={{ width: 40 }} />
+          </Box>
+
+          {/* List Items */}
+          {unifiedItems.length === 0 ? (
+            <Typography sx={{ px: 2, py: 3, color: "#5f6368" }}>
+              {isMyDriveRoot ? "My Drive is empty." : "This folder is empty."}
+            </Typography>
+          ) : (
+            unifiedItems.map((item) => {
+              const isFolderItem = item.type === 'folder';
+              const id = isFolderItem ? (item.publicId || item._id) : item.id;
+              const selected = isFolderItem ? selectedFolders.has(id) : selectedFiles.has(id);
+
+              return (
+                <Box
+                  key={isFolderItem ? `folder-${id}` : `file-${id}`}
+                  onContextMenu={(e) => isFolderItem ? handleFolderMenuOpen(e, item) : handleContextMenu(e, item)}
+                  onClick={(e) => {
+                    if (isFolderItem) handleFolderOpen(id);
+                  }}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    px: 2,
+                    py: 1.5,
+                    borderBottom: "1px solid #f1f3f4",
+                    cursor: "pointer",
+                    backgroundColor: selected ? "#e8f0fe" : "transparent",
+                    "&:hover": {
+                      backgroundColor: selected ? "#e8f0fe" : "#f8f9fa",
+                      "& .item-checkbox": { opacity: 1 },
+                    },
+                  }}
+                >
+                  <Box
+                    className="item-checkbox"
+                    onClick={(e) => e.stopPropagation()}
+                    sx={{
+                      width: 40,
+                      display: "flex",
+                      justifyContent: "center",
+                      opacity: selected ? 1 : 0,
+                      transition: "opacity 0.2s",
+                    }}
+                  >
+                    <Checkbox
+                      size="small"
+                      checked={selected}
+                      onChange={() => isFolderItem ? toggleFolderSelection(id) : toggleFileSelection(id)}
+                    />
+                  </Box>
+
+                  <Box sx={{ flex: 3, display: "flex", alignItems: "center", gap: 1.5 }}>
+                    {isFolderItem ? (
+                      <FolderIcon sx={{ color: "#5f6368", fontSize: 24 }} />
+                    ) : (
+                      <img src={item.icon || "https://www.gstatic.com/images/icons/material/system/2x/insert_drive_file_black_24dp.png"} alt="" width={24} height={24} />
+                    )}
+                    <Typography sx={{ fontWeight: 500 }}>{item.name}</Typography>
+                  </Box>
+
+                  <Box sx={{ flex: 2 }}>
+                    <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
+                      {item.owner || "Unknown"}
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ flex: 2 }}>
+                    <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
+                      {formatDate(item.updatedAt || item.lastAccessedAt || item.uploadedAt)}
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ width: 40, display: "flex", justifyContent: "flex-end" }}>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => isFolderItem ? handleFolderMenuOpen(e, item) : handleMenuButtonClick(e, item)}
+                    >
+                      <MoreVertIcon sx={{ color: "#5f6368" }} />
+                    </IconButton>
+                  </Box>
+                </Box>
+              );
+            })
+          )}
+        </Box>
+      )}
 
       <FileKebabMenu
         anchorEl={folderMenuAnchor}

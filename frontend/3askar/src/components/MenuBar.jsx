@@ -1,3 +1,4 @@
+// ...existing code...
 import React from "react";
 import {
   Box,
@@ -68,12 +69,10 @@ function MenuBar({ visibleFiles } = {}) {
     return value ? value.trim().toLowerCase() : null;
   }, [user]);
 
+  // Use the full list (remove arbitrary 20-slice) so menus include folders/people beyond first 20
   const scopedFiles = React.useMemo(() => {
-    if (Array.isArray(visibleFiles)) {
-      return visibleFiles.slice(0, 20);
-    }
-
-    return Array.isArray(filteredFiles) ? filteredFiles.slice(0, 20) : [];
+    const list = Array.isArray(visibleFiles) ? visibleFiles : filteredFiles;
+    return Array.isArray(list) ? list : [];
   }, [visibleFiles, filteredFiles]);
 
   const normalizeName = React.useCallback((value) => {
@@ -88,9 +87,7 @@ function MenuBar({ visibleFiles } = {}) {
 
     if (typeof value === "object") {
       const id =
-        value._id ??
-        value.id ??
-        (typeof value.toString === "function" ? value.toString() : null);
+        value._id ?? value.id ?? (typeof value.toString === "function" ? value.toString() : null);
 
       if (!id || id === "[object Object]") {
         return null;
@@ -121,22 +118,6 @@ function MenuBar({ visibleFiles } = {}) {
     [currentUserEmail, currentUserId, currentUserName, normalizeName]
   );
 
-  // const dynamicTypes = React.useMemo(() => {
-  //   const set = new Set();
-
-  //   files.forEach((file) => {
-  //     const t = (file.type || "").toLowerCase();
-
-  //     if (t.includes("pdf")) set.add("PDFs");
-  //     if (t.includes("image")) set.add("Images");
-  //     if (t.includes("video")) set.add("Videos");
-  //     if (t.includes("audio")) set.add("Audio");
-  //     if (file.type === "folder") set.add("Folders");
-  //   });
-
-  //   return Array.from(set);
-  // }, [files]);
-
   const dynamicTypes = React.useMemo(() => {
     const set = new Set();
 
@@ -153,7 +134,12 @@ function MenuBar({ visibleFiles } = {}) {
       if (/\.(doc|docx|txt|rtf)$/i.test(name)) set.add("Documents");
       if (/\.(xls|xlsx|csv)$/i.test(name)) set.add("Spreadsheets");
       if (/\.(ppt|pptx|key)$/i.test(name)) set.add("Presentations");
-      if ((file.type || "").toLowerCase() === "folder") set.add("Folders");
+
+      // Broaden folder detection to handle different backends
+      const ft = (file.type || "").toString().toLowerCase();
+      const isFolder =
+        ft === "folder" || ft === "dir" || ft === "directory" || file.isFolder === true;
+      if (isFolder) set.add("Folders");
 
       const mime = (file.type || "").toLowerCase();
       if (mime.includes("pdf")) set.add("PDFs");
@@ -191,20 +177,34 @@ function MenuBar({ visibleFiles } = {}) {
     scopedFiles.forEach((file) => {
       if (!file) return;
 
-      const ownerId = file.ownerId ? file.ownerId.toString() : null;
+      // Robust owner extraction: owner may be string, object, or id field
+      const ownerId =
+        extractIdString(file.ownerId) ||
+        extractIdString(file.owner) ||
+        extractIdString(file.owner?._id) ||
+        null;
+
       const ownerEmail =
-        typeof file.ownerEmail === "string"
-          ? file.ownerEmail.toLowerCase()
-          : null;
+        (typeof file.ownerEmail === "string" && file.ownerEmail.toLowerCase()) ||
+        (file.owner && typeof file.owner.email === "string" && file.owner.email.toLowerCase()) ||
+        null;
+
       const ownerNameRaw =
-        typeof file.owner === "string" ? file.owner.trim() : "";
+        (typeof file.owner === "string" && file.owner.trim()) ||
+        (file.owner && typeof file.owner.name === "string" && file.owner.name.trim()) ||
+        (file.owner && typeof file.owner.fullName === "string" && file.owner.fullName.trim()) ||
+        "";
       const ownerName = normalizeName(ownerNameRaw);
 
       if (!isCurrentUserReference(ownerId, ownerEmail, ownerNameRaw)) {
-        const ownerKey = ownerId || ownerEmail || ownerName || file.id;
-        const ownerDisplay =
-          ownerNameRaw ||
-          (file.ownerEmail ? file.ownerEmail : "Unknown owner");
+        const ownerKey =
+          ownerId ||
+          ownerEmail ||
+          ownerName ||
+          extractIdString(file.id) ||
+          extractIdString(file._id) ||
+          null;
+        const ownerDisplay = ownerNameRaw || ownerEmail || "Unknown owner";
 
         addEntry({
           key: `owner:${ownerKey}`,
@@ -643,3 +643,4 @@ const btnStyle = {
 };
 
 export default MenuBar;
+// ...existing code...

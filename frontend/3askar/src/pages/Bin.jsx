@@ -1,6 +1,7 @@
 ﻿import React from "react";
 import { Box, Typography, IconButton, Menu, MenuItem, Checkbox } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import FolderIcon from "@mui/icons-material/Folder";
 import MenuBar from "../components/MenuBar";
 import BatchToolbar from "../components/BatchToolbar";
 import { useFiles } from "../context/fileContext.jsx";
@@ -236,6 +237,7 @@ function Bin() {
       ) : (
         sortedFiles.map((file) => {
           const selected = isItemSelected(file);
+          const isFolderItem = isFolder(file);
           return (
             <Box
               key={file.id}
@@ -263,33 +265,37 @@ function Bin() {
                   gap: 1.5,
                 }}
               >
-              <img
-                src={file.icon || DEFAULT_FILE_ICON}
-                width={20}
-                height={20}
-                alt="file icon"
-              />
-              {file.name}
-            </Box>
+                {isFolderItem ? (
+                  <FolderIcon sx={{ color: "#5f6368", fontSize: 20 }} />
+                ) : (
+                  <img
+                    src={file.icon || DEFAULT_FILE_ICON}
+                    width={20}
+                    height={20}
+                    alt="file icon"
+                  />
+                )}
+                {file.name}
+              </Box>
 
-            <Box sx={{ flex: 3, color: "#5f6368" }}>
-              {file.owner || "Unknown"}
-            </Box>
+              <Box sx={{ flex: 3, color: "#5f6368" }}>
+                {file.owner || "Unknown"}
+              </Box>
 
-            <Box sx={{ flex: 2, color: "#5f6368" }}>
-              {file.location || "My Drive"}
-            </Box>
+              <Box sx={{ flex: 2, color: "#5f6368" }}>
+                {file.location || "My Drive"}
+              </Box>
 
-            <Box sx={{ flex: 1, color: "#5f6368" }}>
-              {formatDate(
-                file.deletedAt || file.lastAccessedAt || file.uploadedAt
-              )}
-            </Box>
+              <Box sx={{ flex: 1, color: "#5f6368" }}>
+                {formatDate(
+                  file.deletedAt || file.lastAccessedAt || file.uploadedAt
+                )}
+              </Box>
 
-            <IconButton onClick={(event) => handleOpenMenu(event, file)}>
-              <MoreVertIcon sx={{ color: "#5f6368" }} />
-            </IconButton>
-          </Box>
+              <IconButton onClick={(event) => handleOpenMenu(event, file)}>
+                <MoreVertIcon sx={{ color: "#5f6368" }} />
+              </IconButton>
+            </Box>
           );
         })
       )}

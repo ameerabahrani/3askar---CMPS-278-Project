@@ -21,8 +21,8 @@ function App() {
         <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
         <Route element={<ProtectedRoute />}>
-          <Route path="/" element={<Homepage />} />
-          <Route path="/mydrive" element={<MyDrive />} />
+          <Route path="/" element={<Homepage initialView="HOME" />} />
+          <Route path="/mydrive" element={<Homepage initialView="MY_DRIVE" />} />
           <Route path="/starred" element={<Starred />} />
           <Route path="/shared" element={<Shared />} />
           <Route path="/bin" element={<Bin />} />

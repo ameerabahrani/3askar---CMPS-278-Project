@@ -28,6 +28,7 @@ function Starred() {
     toggleFolderSelection,
     clearSelection,
     selectAll,
+    starredFiles: contextStarredFiles,
   } = useFiles();
 
   const [sortField, setSortField] = React.useState("name");
@@ -74,8 +75,19 @@ function Starred() {
 
 
   const starredFiles = React.useMemo(
-    () => filterBySource(undefined, "starred"),
-    [filterBySource]
+    () => {
+      // If we have starredFiles from context (which includes folders), use it.
+      // But we also need to make sure we don't duplicate if filterBySource also returns them?
+      // Actually, filterBySource(undefined, "starred") uses pickSourceList("starred") which uses combinedFiles.
+      // combinedFiles in fileContext now needs to include starredFiles?
+      // Let's check fileContext again. 
+      // I didn't update combinedFiles to include starredFiles.
+      // So filterBySource won't see starred folders unless I update combinedFiles OR I just use starredFiles directly here.
+      // Using starredFiles directly is safer if I expose it.
+      // I exposed starredFiles in fileContext.
+      return contextStarredFiles || [];
+    },
+    [contextStarredFiles]
   );
 
   const sortedFiles = React.useMemo(() => {
@@ -233,26 +245,26 @@ function Starred() {
             </Box>
             <Box sx={{ flex: 4, display: "flex", alignItems: "center", gap: 1.5 }}>
               <StarIcon sx={{ color: "#f7cb4d", fontSize: 20 }} />
-            <img src={file.icon} width={20} height={20} alt="file icon" />
-            {file.name}
+              <img src={file.icon} width={20} height={20} alt="file icon" />
+              {file.name}
+            </Box>
+
+            <Box sx={{ flex: 3, color: "#5f6368" }}>
+              {file.owner || "Unknown"}
+            </Box>
+
+            <Box sx={{ flex: 2, color: "#5f6368" }}>
+              {formatDate(file.lastAccessedAt || file.uploadedAt)}
+            </Box>
+
+            <IconButton onClick={(event) => handleMenuButtonClick(event, file)}>
+              <MoreVertIcon sx={{ color: "#5f6368" }} />
+            </IconButton>
+
           </Box>
-
-          <Box sx={{ flex: 3, color: "#5f6368" }}>
-            {file.owner || "Unknown"}
-          </Box>
-
-          <Box sx={{ flex: 2, color: "#5f6368" }}>
-            {formatDate(file.lastAccessedAt || file.uploadedAt)}
-          </Box>
-
-          <IconButton onClick={(event) => handleMenuButtonClick(event, file)}>
-            <MoreVertIcon sx={{ color: "#5f6368" }} />
-          </IconButton>
-
-        </Box>
         );
       })}
-     
+
       <FileKebabMenu
         anchorEl={menuAnchorEl}
         anchorPosition={anchorPosition}

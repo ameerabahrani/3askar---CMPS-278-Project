@@ -36,6 +36,7 @@ router.get("/find", async (req, res) => {
   if (!email) return res.status(400).json({ message: "Missing email" });
 
     const user = await User.findOne({ email }).select("_id name email picture");
+    
 
     if (!user) return res.status(404).json({ message: "User not found" });
 

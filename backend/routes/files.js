@@ -24,7 +24,7 @@ const Folder = require("../models/Folder");
 const OWNER_FIELDS = "name email picture";
 const SHARED_WITH_POPULATE = { path: "sharedWith.user", select: OWNER_FIELDS };
 
-async function findFolderByAnyId(id) {
+async function findFolderByAnyId(id) { // NEW 
   if (!id) return null;
 
   // Try publicId first
@@ -277,7 +277,7 @@ router.post("/saveMetadata", async (req, res) => {
             return res.status(404).json({ message: "File not found in GridFS" });
 
         }
-
+            
         // resolve folderId (can be publicId or _id coming from frontend)
         let folderObjectId = null;
         if (folderId) {
@@ -366,13 +366,26 @@ router.patch("/:id/rename", async (req, res) => {
         if (!req.user) return res.status(401).json({ message: "Not authenticated" });
         if (!newName) return res.status(400).json({ message: "Missing newName" });
 
-        const updated = await File.findOneAndUpdate(
-            { _id: req.params.id, owner: req.user._id },
-            { $set: { filename: newName } },
-            { new: true }
-        )
-        .populate("owner", OWNER_FIELDS)
-        .populate(SHARED_WITH_POPULATE);
+        // Find file by ID first NEW
+        const file = await File.findOne({ _id: req.params.id, isDeleted: false });
+        if (!file) return res.status(404).json({ message: "File not found" });
+
+        // Check permissions: Owner OR Shared with "write"
+        const isOwner = file.owner.toString() === req.user._id.toString();
+        const sharedEntry = file.sharedWith.find(
+            (s) => s.user.toString() === req.user._id.toString()
+        );
+        const hasWrite = sharedEntry && sharedEntry.permission === "write";
+
+        if (!isOwner && !hasWrite) {
+            return res.status(403).json({ message: "Permission denied" });
+        }
+
+        file.filename = newName;
+        const updated = await file.save();
+
+        await updated.populate("owner", OWNER_FIELDS);
+        await updated.populate(SHARED_WITH_POPULATE);
 
         if (!updated) return res.status(404).json({ message: "File not found" });
 
@@ -717,8 +730,19 @@ router.patch("/:id/share", async (req, res) => {
         if (!["read", "write"].includes(permission)) //TODO IF YOU CHANGE OT BOOLEAN
             return res.status(400).json({ message: "Invalid permission" });
 
-        const file = await File.findOne({ _id: req.params.id, owner: req.user._id });
+        const file = await File.findOne({ _id: req.params.id });
         if (!file) return res.status(404).json({ message: "File not found" });
+
+        // Check permissions: Owner OR Shared with "write"
+        const isOwner = file.owner.toString() === req.user._id.toString();
+        const sharedEntry = file.sharedWith.find(
+            (s) => s.user.toString() === req.user._id.toString()
+        );
+        const hasWrite = sharedEntry && sharedEntry.permission === "write";
+
+        if (!isOwner && !hasWrite) {
+            return res.status(403).json({ message: "Permission denied" });
+        }
 
         const existing = file.sharedWith.find(x => x.user.toString() === userId);
 
@@ -749,8 +773,19 @@ router.patch("/:id/unshare", async (req, res) => {
         if (!req.user) return res.status(401).json({ message: "Not authenticated" });
         if (!userId) return res.status(400).json({ message: "Missing userId" });
 
-        const file = await File.findOne({ _id: req.params.id, owner: req.user._id });
+        const file = await File.findOne({ _id: req.params.id });
         if (!file) return res.status(404).json({ message: "File not found" });
+
+        // Check permissions: Owner OR Shared with "write"
+        const isOwner = file.owner.toString() === req.user._id.toString();
+        const sharedEntry = file.sharedWith.find(
+            (s) => s.user.toString() === req.user._id.toString()
+        );
+        const hasWrite = sharedEntry && sharedEntry.permission === "write";
+
+        if (!isOwner && !hasWrite) {
+            return res.status(403).json({ message: "Permission denied" });
+        }
 
         file.sharedWith = file.sharedWith.filter(x => x.user.toString() !== userId);
         await file.save();
@@ -777,8 +812,19 @@ router.patch("/:id/permission", async (req, res) => {
         if (!["read", "write"].includes(permission))
             return res.status(400).json({ message: "Invalid permission" });
 
-        const file = await File.findOne({ _id: req.params.id, owner: req.user._id });
+        const file = await File.findOne({ _id: req.params.id });
         if (!file) return res.status(404).json({ message: "File not found" });
+
+        // Check permissions: Owner OR Shared with "write"
+        const isOwner = file.owner.toString() === req.user._id.toString();
+        const sharedEntry = file.sharedWith.find(
+            (s) => s.user.toString() === req.user._id.toString()
+        );
+        const hasWrite = sharedEntry && sharedEntry.permission === "write";
+
+        if (!isOwner && !hasWrite) {
+            return res.status(403).json({ message: "Permission denied" });
+        }
 
         const target = file.sharedWith.find(x => x.user.toString() === userId);
         if (!target) return res.status(404).json({ message: "User not in share list" });

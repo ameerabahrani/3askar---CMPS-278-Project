@@ -90,46 +90,54 @@ function ShareDialog({ open, file, onClose }) {
   // ---------- ACTIONS ----------
   // 1) Add collaborator (file vs folder)
   const handleAddCollaborator = async () => {
-    if (!isEmailValid || !targetId) return;
+    const raw = (email || "").trim();
+    if (!raw) return;
+    const normalized = raw.toLowerCase();
 
     try {
-      // 1A. find user by email
-      const res = await apiClient.get(`/user/find?email=${trimmedEmail}`);
+      // Find user by email (normalize casing)
+      const res = await apiClient.get(
+        `/user/find?email=${encodeURIComponent(normalized)}`
+      );
+
       const user = res.data?.user;
       if (!user) {
         alert("This email does not belong to a registered 3askar user.");
         return;
       }
 
-      if (isFolder) {
-        // FOLDER: permission controlled by boolean canEdit
-        await apiClient.patch(`/folders/${targetId}/share`, {
-          userId: user._id,
-          canEdit: permission === "write",
-        });
-
-        setCollaborators((prev) => [
-          ...prev,
-          { user, canEdit: permission === "write" },
-        ]);
-      } else {
-        // FILE (your original behavior)
-        await apiClient.patch(`/files/${targetId}/share`, {
+      // Attempt to share. Backend requires the current user to be the owner;
+      // if not, the route will return 404 (File not found)
+      try {
+        await apiClient.patch(`/files/${file.id}/share`, {
           userId: user._id,
           permission,
         });
 
-        setCollaborators((prev) => [
-          ...prev,
-          { user, permission },
-        ]);
+        // Update UI
+        setCollaborators((prev) => [...prev, { user, permission }]);
+        setEmail("");
+        setPermission("read");
+      } catch (shareErr) {
+        const status = shareErr?.response?.status;
+        const msg = shareErr?.response?.data?.message || "";
+        if (status === 404 && /file not found/i.test(msg)) {
+          alert("Unable to share: you must be the file owner to add collaborators.");
+        } else if (status === 400) {
+          alert(msg || "Invalid share request.");
+        } else {
+          console.error("Share error:", shareErr);
+          alert(msg || "Failed to share file.");
+        }
       }
-
-      setEmail("");
-      setPermission("read");
     } catch (err) {
-      console.error("Error adding collaborator:", err);
-      alert("User not found or sharing failed.");
+      const status = err?.response?.status;
+      if (status === 404) {
+        alert("This email does not belong to a registered 3askar user.");
+      } else {
+        console.error("Find user error:", err);
+        alert("Unable to verify user right now.");
+      }
     }
   };
 

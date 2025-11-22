@@ -10,7 +10,6 @@ import React, {
 import apiClient, { API_BASE_URL } from "../services/apiClient";
 import { useAuth } from "./AuthContext";
 
-
 const FileContext = createContext();
 
 const DEFAULT_FILE_ICON =
@@ -50,15 +49,19 @@ const resolveIcon = (filename = "", mime = "") => {
   return match?.icon ?? DEFAULT_FILE_ICON;
 };
 
+/** logging + spans (from old version) */
 const LOG_ENABLED = false;
 const nowIso = () => new Date().toISOString();
-const timer = () => (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now());
+const timer = () =>
+  typeof performance !== "undefined" && performance.now
+    ? performance.now()
+    : Date.now();
 const logEvent = (label, detail = {}) => {
   if (!LOG_ENABLED) return;
   console.info(`[FileContext][${nowIso()}] ${label}`, detail);
 };
 const startSpan = (label, detail = {}) => {
-  if (!LOG_ENABLED) return () => { };
+  if (!LOG_ENABLED) return () => {};
   const started = timer();
   logEvent(`${label}:start`, detail);
   return (extra = {}) =>
@@ -69,7 +72,7 @@ const startSpan = (label, detail = {}) => {
     });
 };
 
-const USE_MOCK_DATA = false; //flip to false 
+const USE_MOCK_DATA = false; // flip to true for mock mode
 
 const MOCK_FILES = [
   {
@@ -148,13 +151,13 @@ const normalizeFile = (file) => {
     isStarred: Boolean(file.isStarred),
     isDeleted: Boolean(file.isDeleted),
     sharedWith: Array.isArray(file.sharedWith)
-      ? file.sharedWith.map(entry => ({
-        userId: entry.user?._id || entry.user,
-        name: entry.user?.name || null,
-        email: entry.user?.email || null,
-        picture: entry.user?.picture || null,
-        permission: entry.permission,
-      }))
+      ? file.sharedWith.map((entry) => ({
+          userId: entry.user?._id || entry.user,
+          name: entry.user?.name || null,
+          email: entry.user?.email || null,
+          picture: entry.user?.picture || null,
+          permission: entry.permission,
+        }))
       : [],
     size: file.size,
     type: file.type,
@@ -163,7 +166,6 @@ const normalizeFile = (file) => {
     folderId: file.folderId ? file.folderId.toString() : null,
     icon: resolveIcon(file.filename || file.originalName, file.type),
   };
-
 };
 
 export const FileProvider = ({ children }) => {
@@ -172,19 +174,26 @@ export const FileProvider = ({ children }) => {
   const [sharedFiles, setSharedFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // FC-1: missing ref for files list used in effects and actions
-  const filesRef = useRef([]);
-  // FC-2: uploading state previously referenced but not defined
   const [uploading, setUploading] = useState(false);
-  // FC-3: selection state (files / folders as Sets for O(1) membership)
+
+  // from new version – actually used by runFileSearch/clearSearch
+  const [searchResults, setSearchResults] = useState(null);
+  const [searching, setSearching] = useState(false);
+
+  // selection + batch (old)
   const [selectedFiles, setSelectedFiles] = useState(() => new Set());
   const [selectedFolders, setSelectedFolders] = useState(() => new Set());
+
+  const filesRef = useRef([]);
   const trashRef = useRef([]);
+  const sharedRef = useRef([]); // from new version
 
   const { user, loading: authLoading } = useAuth() || {};
   const currentUserId = user?._id ? user._id.toString() : null;
   const currentUserEmail =
     typeof user?.email === "string" ? user.email.toLowerCase() : null;
+
+  const pendingRefresh = useRef(false); // from old version
 
   useEffect(() => {
     filesRef.current = files;
@@ -193,6 +202,10 @@ export const FileProvider = ({ children }) => {
   useEffect(() => {
     trashRef.current = trashFiles;
   }, [trashFiles]);
+
+  useEffect(() => {
+    sharedRef.current = sharedFiles;
+  }, [sharedFiles]);
 
   const fetchCollections = useCallback(async () => {
     if (authLoading) {
@@ -267,9 +280,15 @@ export const FileProvider = ({ children }) => {
         apiClient.get("/files/shared"),
       ]);
 
-      const ownedNormalized = (owned.data || []).map(normalizeFile).filter(Boolean);
-      const trashNormalized = (trash.data || []).map(normalizeFile).filter(Boolean);
-      const sharedNormalized = (shared.data || []).map(normalizeFile).filter(Boolean);
+      const ownedNormalized = (owned.data || [])
+        .map(normalizeFile)
+        .filter(Boolean);
+      const trashNormalized = (trash.data || [])
+        .map(normalizeFile)
+        .filter(Boolean);
+      const sharedNormalized = (shared.data || [])
+        .map(normalizeFile)
+        .filter(Boolean);
 
       setFiles(ownedNormalized);
       setTrashFiles(trashNormalized);
@@ -300,8 +319,8 @@ export const FileProvider = ({ children }) => {
     } catch (err) {
       setError(
         err.response?.data?.message ||
-        err.message ||
-        "Unable to load files at the moment."
+          err.message ||
+          "Unable to load files at the moment."
       );
       logEvent("fetchCollections:error", {
         message: err.message,
@@ -317,7 +336,7 @@ export const FileProvider = ({ children }) => {
     fetchCollections();
   }, [fetchCollections]);
 
-  // If a refresh was requested while no user was present, replay it once auth is ready
+  // replay pending refresh when auth becomes ready (old behavior)
   useEffect(() => {
     if (authLoading) return;
     if (pendingRefresh.current && (currentUserId || currentUserEmail)) {
@@ -327,46 +346,53 @@ export const FileProvider = ({ children }) => {
     }
   }, [authLoading, currentUserEmail, currentUserId, fetchCollections]);
 
-  const toggleStar = useCallback(async (id) => {
-    const finish = startSpan("toggleStar", { id });
-    const existing = filesRef.current.find((file) => file.id === id);
-    if (!existing) {
-      finish({ status: "skip-missing-file" });
-      return;
-    }
+  /** merged toggleStar: old logging + rollback + new support for sharedFiles */
+  const toggleStar = useCallback(
+    async (id) => {
+      const finish = startSpan("toggleStar", { id });
+      setError(null);
 
-    const nextState = !existing.isStarred;
+      const existing =
+        filesRef.current.find((file) => file.id === id) ||
+        sharedRef.current.find((file) => file.id === id);
 
-    setFiles((prev) =>
-      prev.map((file) =>
-        file.id === id ? { ...file, isStarred: nextState } : file
-      )
-    );
+      if (!existing) {
+        finish({ status: "skip-missing-file" });
+        return;
+      }
 
-    if (USE_MOCK_DATA) {
-      finish({ status: "mock", nextState });
-      return;
-    }
+      const nextState = !existing.isStarred;
+      const applyStarState = (collection, value) =>
+        collection.map((file) =>
+          file.id === id ? { ...file, isStarred: value } : file
+        );
 
-    try {
-      await apiClient.patch(`/files/${id}/star`, { isStarred: nextState });
-      finish({ status: "ok", nextState });
-    } catch (err) {
-      setFiles((prev) =>
-        prev.map((file) =>
-          file.id === id ? { ...file, isStarred: existing.isStarred } : file
-        )
-      );
+      setFiles((prev) => applyStarState(prev, nextState));
+      setSharedFiles((prev) => applyStarState(prev, nextState));
 
-      setError("Unable to update star. Try again.");
-      logEvent("toggleStar:error", {
-        id,
-        message: err.message,
-        response: err.response,
-      });
-      finish({ status: "error", nextState, error: err.message });
-    }
-  }, []);
+      if (USE_MOCK_DATA) {
+        finish({ status: "mock", nextState });
+        return;
+      }
+
+      try {
+        await apiClient.patch(`/files/${id}/star`, { isStarred: nextState });
+        finish({ status: "ok", nextState });
+      } catch (err) {
+        // rollback
+        setFiles((prev) => applyStarState(prev, existing.isStarred));
+        setSharedFiles((prev) => applyStarState(prev, existing.isStarred));
+        setError("Unable to update star. Try again.");
+        logEvent("toggleStar:error", {
+          id,
+          message: err.message,
+          response: err.response,
+        });
+        finish({ status: "error", nextState, error: err.message });
+      }
+    },
+    []
+  );
 
   const moveToTrash = useCallback(async (id) => {
     const finish = startSpan("moveToTrash", { id });
@@ -495,7 +521,10 @@ export const FileProvider = ({ children }) => {
   );
 
   const downloadFile = useCallback((file) => {
-    const finish = startSpan("downloadFile", { id: file?.id, name: file?.name });
+    const finish = startSpan("downloadFile", {
+      id: file?.id,
+      name: file?.name,
+    });
     if (!file?.gridFsId) {
       finish({ status: "skip-no-gridfs" });
       return;
@@ -523,8 +552,8 @@ export const FileProvider = ({ children }) => {
       const file =
         typeof target === "string"
           ? filesRef.current.find((item) => item.id === target) ||
-          trashRef.current.find((item) => item.id === target) ||
-          sharedFiles.find((item) => item.id === target)
+            trashRef.current.find((item) => item.id === target) ||
+            sharedFiles.find((item) => item.id === target)
           : target;
 
       if (!file?.id) {
@@ -580,61 +609,93 @@ export const FileProvider = ({ children }) => {
     [fetchCollections, sharedFiles]
   );
 
-  const batchTrash = useCallback(async (fileIds = [], folderIds = [], isDeleted) => {
-    const finish = startSpan("batchTrash", { fileIds, folderIds, isDeleted });
-    if ((!fileIds || fileIds.length === 0) && (!folderIds || folderIds.length === 0)) {
-      finish({ status: "skip-empty" });
-      return;
-    }
-    try {
-      await apiClient.post("/batch/trash", { fileIds, folderIds, isDeleted });
-      // Optimistic update or refresh
-      // For simplicity, we'll refresh to ensure consistency, especially for folders
-      await fetchCollections();
-      finish({ status: "ok" });
-    } catch (err) {
-      setError("Unable to update items.");
-      logEvent("batchTrash:error", { message: err.message });
-      finish({ status: "error", error: err.message });
-      throw err;
-    }
-  }, [fetchCollections]);
+  const batchTrash = useCallback(
+    async (fileIds = [], folderIds = [], isDeleted) => {
+      const finish = startSpan("batchTrash", {
+        fileIds,
+        folderIds,
+        isDeleted,
+      });
+      if (
+        (!fileIds || fileIds.length === 0) &&
+        (!folderIds || folderIds.length === 0)
+      ) {
+        finish({ status: "skip-empty" });
+        return;
+      }
+      try {
+        await apiClient.post("/batch/trash", {
+          fileIds,
+          folderIds,
+          isDeleted,
+        });
+        await fetchCollections();
+        finish({ status: "ok" });
+      } catch (err) {
+        setError("Unable to update items.");
+        logEvent("batchTrash:error", { message: err.message });
+        finish({ status: "error", error: err.message });
+        throw err;
+      }
+    },
+    [fetchCollections]
+  );
 
-  const batchDelete = useCallback(async (fileIds = [], folderIds = []) => {
-    const finish = startSpan("batchDelete", { fileIds, folderIds });
-    if ((!fileIds || fileIds.length === 0) && (!folderIds || folderIds.length === 0)) {
-      finish({ status: "skip-empty" });
-      return;
-    }
-    try {
-      await apiClient.post("/batch/delete", { fileIds, folderIds });
-      await fetchCollections();
-      finish({ status: "ok" });
-    } catch (err) {
-      setError("Unable to delete items permanently.");
-      logEvent("batchDelete:error", { message: err.message });
-      finish({ status: "error", error: err.message });
-      throw err;
-    }
-  }, [fetchCollections]);
+  const batchDelete = useCallback(
+    async (fileIds = [], folderIds = []) => {
+      const finish = startSpan("batchDelete", { fileIds, folderIds });
+      if (
+        (!fileIds || fileIds.length === 0) &&
+        (!folderIds || folderIds.length === 0)
+      ) {
+        finish({ status: "skip-empty" });
+        return;
+      }
+      try {
+        await apiClient.post("/batch/delete", { fileIds, folderIds });
+        await fetchCollections();
+        finish({ status: "ok" });
+      } catch (err) {
+        setError("Unable to delete items permanently.");
+        logEvent("batchDelete:error", { message: err.message });
+        finish({ status: "error", error: err.message });
+        throw err;
+      }
+    },
+    [fetchCollections]
+  );
 
-  const batchMove = useCallback(async (fileIds = [], folderIds = [], destinationFolderId) => {
-    const finish = startSpan("batchMove", { fileIds, folderIds, destinationFolderId });
-    if ((!fileIds || fileIds.length === 0) && (!folderIds || folderIds.length === 0)) {
-      finish({ status: "skip-empty" });
-      return;
-    }
-    try {
-      await apiClient.post("/batch/move", { fileIds, folderIds, destinationFolderId });
-      await fetchCollections();
-      finish({ status: "ok" });
-    } catch (err) {
-      setError("Unable to move items.");
-      logEvent("batchMove:error", { message: err.message });
-      finish({ status: "error", error: err.message });
-      throw err;
-    }
-  }, [fetchCollections]);
+  const batchMove = useCallback(
+    async (fileIds = [], folderIds = [], destinationFolderId) => {
+      const finish = startSpan("batchMove", {
+        fileIds,
+        folderIds,
+        destinationFolderId,
+      });
+      if (
+        (!fileIds || fileIds.length === 0) &&
+        (!folderIds || folderIds.length === 0)
+      ) {
+        finish({ status: "skip-empty" });
+        return;
+      }
+      try {
+        await apiClient.post("/batch/move", {
+          fileIds,
+          folderIds,
+          destinationFolderId,
+        });
+        await fetchCollections();
+        finish({ status: "ok" });
+      } catch (err) {
+        setError("Unable to move items.");
+        logEvent("batchMove:error", { message: err.message });
+        finish({ status: "error", error: err.message });
+        throw err;
+      }
+    },
+    [fetchCollections]
+  );
 
   const batchDownload = useCallback(async (fileIds = [], folderIds = []) => {
     const finish = startSpan("batchDownload", { fileIds, folderIds });
@@ -644,7 +705,10 @@ export const FileProvider = ({ children }) => {
         finish({ status: "mock" });
         return;
       }
-      if ((!fileIds || fileIds.length === 0) && (!folderIds || folderIds.length === 0)) {
+      if (
+        (!fileIds || fileIds.length === 0) &&
+        (!folderIds || folderIds.length === 0)
+      ) {
         setError("Select files or folders to download.");
         finish({ status: "skip-empty" });
         return;
@@ -699,65 +763,92 @@ export const FileProvider = ({ children }) => {
     }
   }, []);
 
-  const batchShare = useCallback(async (fileIds, folderIds, userId, permission) => {
-    const finish = startSpan("batchShare", { fileIds, folderIds, userId, permission });
-    if ((!fileIds || fileIds.length === 0) && (!folderIds || folderIds.length === 0)) {
-      finish({ status: "skip-empty" });
-      return false;
-    }
-    try {
-      await apiClient.post("/batch/share", {
+  const batchShare = useCallback(
+    async (fileIds, folderIds, userId, permission) => {
+      const finish = startSpan("batchShare", {
         fileIds,
         folderIds,
         userId,
-        permission
+        permission,
       });
-      finish({ status: "ok" });
-      return true;
-    } catch (err) {
-      console.error("Batch share error:", err);
-      setError("Failed to share items");
-      logEvent("batchShare:error", { message: err.message });
-      finish({ status: "error", error: err.message });
-      return false;
-    }
-  }, []);
+      if (
+        (!fileIds || fileIds.length === 0) &&
+        (!folderIds || folderIds.length === 0)
+      ) {
+        finish({ status: "skip-empty" });
+        return false;
+      }
+      try {
+        await apiClient.post("/batch/share", {
+          fileIds,
+          folderIds,
+          userId,
+          permission,
+        });
+        finish({ status: "ok" });
+        return true;
+      } catch (err) {
+        console.error("Batch share error:", err);
+        setError("Failed to share items");
+        logEvent("batchShare:error", { message: err.message });
+        finish({ status: "error", error: err.message });
+        return false;
+      }
+    },
+    []
+  );
 
-  const batchCopy = useCallback(async (fileIds = [], folderIds = []) => {
-    const finish = startSpan("batchCopy", { fileIds, folderIds });
-    if ((!fileIds || fileIds.length === 0) && (!folderIds || folderIds.length === 0)) {
-      finish({ status: "skip-empty" });
-      return;
-    }
-    try {
-      await apiClient.post("/batch/copy", { fileIds, folderIds });
-      await fetchCollections();
-      finish({ status: "ok" });
-    } catch (err) {
-      setError("Unable to copy items.");
-      logEvent("batchCopy:error", { message: err.message });
-      finish({ status: "error", error: err.message });
-      throw err;
-    }
-  }, [fetchCollections]);
+  const batchCopy = useCallback(
+    async (fileIds = [], folderIds = []) => {
+      const finish = startSpan("batchCopy", { fileIds, folderIds });
+      if (
+        (!fileIds || fileIds.length === 0) &&
+        (!folderIds || folderIds.length === 0)
+      ) {
+        finish({ status: "skip-empty" });
+        return;
+      }
+      try {
+        await apiClient.post("/batch/copy", { fileIds, folderIds });
+        await fetchCollections();
+        finish({ status: "ok" });
+      } catch (err) {
+        setError("Unable to copy items.");
+        logEvent("batchCopy:error", { message: err.message });
+        finish({ status: "error", error: err.message });
+        throw err;
+      }
+    },
+    [fetchCollections]
+  );
 
-  const batchStar = useCallback(async (fileIds = [], folderIds = [], isStarred) => {
-    const finish = startSpan("batchStar", { fileIds, folderIds, isStarred });
-    if ((!fileIds || fileIds.length === 0) && (!folderIds || folderIds.length === 0)) {
-      finish({ status: "skip-empty" });
-      return;
-    }
-    try {
-      await apiClient.post("/batch/star", { fileIds, folderIds, isStarred });
-      await fetchCollections();
-      finish({ status: "ok" });
-    } catch (err) {
-      setError("Unable to update star status.");
-      logEvent("batchStar:error", { message: err.message });
-      finish({ status: "error", error: err.message });
-      throw err;
-    }
-  }, [fetchCollections]);
+  const batchStar = useCallback(
+    async (fileIds = [], folderIds = [], isStarred) => {
+      const finish = startSpan("batchStar", {
+        fileIds,
+        folderIds,
+        isStarred,
+      });
+      if (
+        (!fileIds || fileIds.length === 0) &&
+        (!folderIds || folderIds.length === 0)
+      ) {
+        finish({ status: "skip-empty" });
+        return;
+      }
+      try {
+        await apiClient.post("/batch/star", { fileIds, folderIds, isStarred });
+        await fetchCollections();
+        finish({ status: "ok" });
+      } catch (err) {
+        setError("Unable to update star status.");
+        logEvent("batchStar:error", { message: err.message });
+        finish({ status: "error", error: err.message });
+        throw err;
+      }
+    },
+    [fetchCollections]
+  );
 
   const uploadFiles = useCallback(
     async (selectedFiles, options = {}) => {
@@ -852,7 +943,6 @@ export const FileProvider = ({ children }) => {
   const runFileSearch = useCallback(
     async (params = {}) => {
       const finish = startSpan("runFileSearch", params);
-      // Basic guard: if everything is empty, clear search
       const {
         q,
         type,
@@ -888,7 +978,6 @@ export const FileProvider = ({ children }) => {
 
       try {
         const queryParams = {
-          // simple text query
           q: q || "",
           type: type || "any",
           owner: owner || "anyone",
@@ -915,8 +1004,8 @@ export const FileProvider = ({ children }) => {
         console.error("runFileSearch error:", err);
         setError(
           err.response?.data?.message ||
-          err.message ||
-          "Unable to search files right now."
+            err.message ||
+            "Unable to search files right now."
         );
         logEvent("runFileSearch:error", {
           message: err.message,
@@ -935,7 +1024,6 @@ export const FileProvider = ({ children }) => {
     logEvent("search:cleared");
   }, []);
 
-
   const refreshFiles = useCallback(() => {
     logEvent("refreshFiles:requested");
     if (!currentUserId && !currentUserEmail) {
@@ -948,10 +1036,10 @@ export const FileProvider = ({ children }) => {
 
   const matchesCurrentUser = useCallback(
     (file) => {
-      if (!file) return false; //if file is unidentified
+      if (!file) return false;
 
-      const ownerId = file.ownerId ? file.ownerId.toString() : null; //extract ownerId from file, if it exists -> convert to string, if not, set to null
-      if (ownerId && currentUserId && ownerId === currentUserId) { //if file has an ownerId, user has id, they match = file belongs to curr user
+      const ownerId = file.ownerId ? file.ownerId.toString() : null;
+      if (ownerId && currentUserId && ownerId === currentUserId) {
         return true;
       }
 
@@ -1028,12 +1116,40 @@ export const FileProvider = ({ children }) => {
     }
   }, []);
 
+  /** canRename from new version, uses matchesCurrentUser + sharedWith */
+  const canRename = useCallback(
+    (file) => {
+      if (!file) return false;
+
+      // 1. Owner can always rename
+      if (matchesCurrentUser(file)) return true;
+
+      // 2. Shared user with "write" permission can rename
+      if (file.sharedWith && Array.isArray(file.sharedWith)) {
+        const me = file.sharedWith.find((entry) => {
+          const entryId = entry.userId?.toString() || entry.user?.toString();
+          const entryEmail =
+            entry.email?.toLowerCase() || entry.user?.email?.toLowerCase();
+
+          if (entryId && currentUserId && entryId === currentUserId) return true;
+          if (entryEmail && currentUserEmail && entryEmail === currentUserEmail)
+            return true;
+          return false;
+        });
+
+        if (me && me.permission === "write") return true;
+      }
+
+      return false;
+    },
+    [matchesCurrentUser, currentUserId, currentUserEmail]
+  );
+
   const [filterMode, setFilterMode] = useState("files");
   const [typeFilter, setTypeFilter] = useState(null);
   const [peopleFilter, setPeopleFilter] = useState(null);
   const [modifiedFilter, setModifiedFilter] = useState(null);
   const [sourceFilter, setSourceFilter] = useState(null);
-  const pendingRefresh = useRef(false);
 
   const filterByModified = useCallback(
     (list) => {
@@ -1050,16 +1166,13 @@ export const FileProvider = ({ children }) => {
         switch (modifiedFilter) {
           case "today":
             return date.toDateString() === today.toDateString();
-
           case "week":
             return today - date <= 7 * 24 * 60 * 60 * 1000;
-
           case "month":
             return (
               date.getMonth() === today.getMonth() &&
               date.getFullYear() === today.getFullYear()
             );
-
           default:
             return true;
         }
@@ -1199,8 +1312,6 @@ export const FileProvider = ({ children }) => {
     matchesCurrentUser,
   ]);
 
-
-
   const filterBySource = useCallback(
     (list, overrideSource) => {
       const active = overrideSource ?? sourceFilter ?? "anywhere";
@@ -1210,21 +1321,23 @@ export const FileProvider = ({ children }) => {
     [sourceFilter, pickSourceList, matchesSource]
   );
 
-  // Selection handlers (FC-4 .. FC-8) placed outside filteredFiles useMemo
+  // selection handlers (from old version)
   const toggleFileSelection = useCallback((id) => {
     if (!id) return;
-    setSelectedFiles(prev => {
+    setSelectedFiles((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
 
   const toggleFolderSelection = useCallback((id) => {
     if (!id) return;
-    setSelectedFolders(prev => {
+    setSelectedFolders((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
@@ -1238,25 +1351,35 @@ export const FileProvider = ({ children }) => {
     clearSelection();
   }, [sourceFilter, clearSelection]);
 
-  const selectAll = useCallback((items = []) => {
-    if (!Array.isArray(items) || items.length === 0) {
-      clearSelection();
-      return;
-    }
-    const fileIds = [];
-    const folderIds = [];
-    items.forEach(item => {
-      if (!item || !item.id) return;
-      const itemIsFolder = (item.type || "").toLowerCase() === "folder";
-      if (itemIsFolder) folderIds.push(item.id); else fileIds.push(item.id);
-    });
-    setSelectedFiles(new Set(fileIds));
-    setSelectedFolders(new Set(folderIds));
-  }, [clearSelection]);
+  const selectAll = useCallback(
+    (items = []) => {
+      if (!Array.isArray(items) || items.length === 0) {
+        clearSelection();
+        return;
+      }
+      const fileIds = [];
+      const folderIds = [];
+      items.forEach((item) => {
+        if (!item || !item.id) return;
+        const itemIsFolder = (item.type || "").toLowerCase() === "folder";
+        if (itemIsFolder) folderIds.push(item.id);
+        else fileIds.push(item.id);
+      });
+      setSelectedFiles(new Set(fileIds));
+      setSelectedFolders(new Set(folderIds));
+    },
+    [clearSelection]
+  );
 
   const isBatchMode = selectedFiles.size + selectedFolders.size > 0;
-  const selectedFilesSafe = useMemo(() => new Set(selectedFiles), [selectedFiles]);
-  const selectedFoldersSafe = useMemo(() => new Set(selectedFolders), [selectedFolders]);
+  const selectedFilesSafe = useMemo(
+    () => new Set(selectedFiles),
+    [selectedFiles]
+  );
+  const selectedFoldersSafe = useMemo(
+    () => new Set(selectedFolders),
+    [selectedFolders]
+  );
 
   return (
     <FileContext.Provider
@@ -1267,8 +1390,8 @@ export const FileProvider = ({ children }) => {
         loading,
         error,
         uploading,
-        //searchResults,
-        //searching,
+        searchResults,
+        searching,
         toggleStar,
         moveToTrash,
         restoreFromBin,
@@ -1306,6 +1429,7 @@ export const FileProvider = ({ children }) => {
         batchDownload,
         batchShare,
         batchCopy,
+        canRename,
       }}
     >
       {children}

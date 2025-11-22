@@ -7,6 +7,11 @@ import { useFiles } from "../context/fileContext.jsx";
 import FileKebabMenu from "../components/FileKebabMenu.jsx";
 import { isFolder } from "../utils/fileHelpers";
 import { getRowStyles } from "../styles/selectionTheme";
+import HoverActions from "../components/HoverActions.jsx";
+import RenameDialog from "../components/RenameDialog";
+import ShareDialog from "../components/ShareDialog.jsx";
+import DetailsPanel from "../components/DetailsPanel.jsx";
+
 
 const DEFAULT_FILE_ICON =
   "https://www.gstatic.com/images/icons/material/system/2x/insert_drive_file_black_24dp.png";
@@ -37,6 +42,10 @@ function Shared() {
     loading,
     error,
     filterBySource,
+    toggleStar,
+    renameFile,
+    downloadFile,
+    canRename,
     selectedFiles,
     selectedFolders,
     toggleFileSelection,
@@ -50,6 +59,14 @@ function Shared() {
   const [menuAnchorEl, setMenuAnchorEl] = React.useState(null);
   const [menuPosition, setMenuPosition] = React.useState(null);
   const [selectedFile, setSelectedFile] = React.useState(null);
+
+  // Dialog states
+  const [renameDialogOpen, setRenameDialogOpen] = React.useState(false);
+  const [fileToRename, setFileToRename] = React.useState(null);
+  const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
+  const [fileToShare, setFileToShare] = React.useState(null);
+  const [detailsPanelOpen, setDetailsPanelOpen] = React.useState(false);
+  const [detailsFile, setDetailsFile] = React.useState(null);
 
   const menuOpen = Boolean(menuAnchorEl) || Boolean(menuPosition);
 
@@ -114,6 +131,28 @@ function Shared() {
     });
     return data;
   }, [sharedFiles, sortField, sortDirection]);
+
+  // Handlers
+  const openMenu = (event, file) => {
+    event.stopPropagation();
+    setMenuAnchorEl(event.currentTarget);
+    setSelectedFile(file);
+  };
+
+  const closeMenu = () => {
+    setMenuAnchorEl(null);
+    setSelectedFile(null);
+  }
+
+  const openShareDialog = (file) => {
+    setFileToShare(file);
+    setShareDialogOpen(true);
+  };
+
+  const openRenameDialog = (file) => {
+    setFileToRename(file);
+    setRenameDialogOpen(true);
+  };
 
   const selectedCount = React.useMemo(
     () => sortedFiles.reduce((acc, f) => {
@@ -233,6 +272,7 @@ function Shared() {
       ) : (
         sortedFiles.map((file) => {
           const selected = isItemSelected(file);
+
           return (
             <Box
               key={file.id}
@@ -243,38 +283,67 @@ function Shared() {
                 px: 2,
                 py: 1.5,
                 borderBottom: "1px solid #f1f3f4",
+                cursor: "pointer",
                 ...getRowStyles(selected),
               }}
             >
+              {/* Batch checkbox */}
               <Box sx={{ width: 40, display: "flex", justifyContent: "center" }}>
                 <Checkbox
                   size="small"
                   checked={selected}
-                  onChange={(e) => { e.stopPropagation(); toggleSelectionFor(file); }}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    toggleSelectionFor(file);
+                  }}
                 />
               </Box>
-              <Box sx={{ flex: 4, display: "flex", alignItems: "center", gap: 1.5 }}>
-              <img
-                src={file.icon || DEFAULT_FILE_ICON}
-                width={20}
-                height={20}
-                alt="file icon"
+
+              {/* HoverActions replaces ALL row content */}
+              <HoverActions
+                file={file}
+                toggleStar={toggleStar}
+                openShareDialog={openShareDialog}
+                openRenameDialog={openRenameDialog}
+                openMenu={handleMenuButtonClick}
+                downloadFile={downloadFile}
+                formatDate={formatDate}
+                showShare={true}
+                showRename={canRename(file)}
+                disableWrapper={true}
+                renderContent={(f) => (
+                  <>
+                    {/* NAME + ICON */}
+                    <Box
+                      sx={{
+                        flex: 4,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.5,
+                      }}
+                    >
+                      <img
+                        src={f.icon || DEFAULT_FILE_ICON}
+                        width={20}
+                        height={20}
+                        alt="file icon"
+                      />
+                      {f.name}
+                    </Box>
+
+                    {/* OWNER */}
+                    <Box sx={{ flex: 3, color: "#5f6368" }}>
+                      {f.owner || "Unknown"}
+                    </Box>
+
+                    {/* DATE */}
+                    <Box sx={{ flex: 2, color: "#5f6368" }}>
+                      {formatDate(f.lastAccessedAt || f.uploadedAt)}
+                    </Box>
+                  </>
+                )}
               />
-              {file.name}
             </Box>
-
-            <Box sx={{ flex: 3, color: "#5f6368" }}>
-              {file.owner || "Unknown"}
-            </Box>
-
-            <Box sx={{ flex: 2, color: "#5f6368" }}>
-              {formatDate(file.lastAccessedAt || file.uploadedAt)}
-            </Box>
-
-            <IconButton onClick={(event) => handleMenuButtonClick(event, file)}>
-              <MoreVertIcon sx={{ color: "#5f6368" }} />
-            </IconButton>
-          </Box>
           );
         })
       )}

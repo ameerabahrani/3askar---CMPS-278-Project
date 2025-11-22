@@ -8,6 +8,8 @@ import {
   Button,
   Box,
   IconButton,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 
@@ -41,8 +43,11 @@ function RenameDialog({
     title || (file ? `Rename “${file.name}”` : "Rename item");
   const effectiveSubmitLabel = submitLabel || "Rename";
 
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs" fullScreen={isMobile}>
       <DialogTitle sx={{ fontWeight: 600, pb: 1 }}>
         {effectiveTitle}
         <IconButton

@@ -573,9 +573,9 @@ function Homepage({ initialView = "MY_DRIVE" }) {
     <Box
       sx={{
         flexGrow: 1,
-        px: 6, // horizontal padding
-        pt: 3, // smaller top padding
-        pb: 6, // bottom padding
+        px: { xs: 2, md: 6 }, // responsive horizontal padding
+        pt: 3,
+        pb: 6,
         marginTop: "64px",
         backgroundColor: "#ffffff",
         height: "calc(100vh - 64px)",
@@ -768,6 +768,7 @@ function Homepage({ initialView = "MY_DRIVE" }) {
                   xs={12}
                   sm={6}
                   md={4}
+                  lg={3}
                   key={folder.publicId || folder._id}
                 >
                   <Paper
@@ -929,8 +930,8 @@ function Homepage({ initialView = "MY_DRIVE" }) {
                     />
                   </Box>
                   <Box sx={{ flex: 3 }}>Name</Box>
-                  <Box sx={{ flex: 2 }}>Owner</Box>
-                  <Box sx={{ flex: 2 }}>Date modified</Box>
+                  <Box sx={{ flex: 2, display: { xs: "none", md: "block" } }}>Owner</Box>
+                  <Box sx={{ flex: 2, display: { xs: "none", md: "block" } }}>Date modified</Box>
                   <Box sx={{ width: 40 }} />
                 </Box>
 
@@ -992,13 +993,13 @@ function Homepage({ initialView = "MY_DRIVE" }) {
                       </Typography>
                     </Box>
 
-                    <Box sx={{ flex: 2 }}>
+                    <Box sx={{ flex: 2, display: { xs: "none", md: "block" } }}>
                       <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
                         {file.owner || "Unknown"}
                       </Typography>
                     </Box>
 
-                    <Box sx={{ flex: 2 }}>
+                    <Box sx={{ flex: 2, display: { xs: "none", md: "block" } }}>
                       <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
                         {formatDate(file.lastAccessedAt || file.uploadedAt)}
                       </Typography>
@@ -1110,8 +1111,8 @@ function Homepage({ initialView = "MY_DRIVE" }) {
                   >
                     <Box sx={{ flex: 3 }}>Name</Box>
                     <Box sx={{ flex: 2 }}>Reason suggested</Box>
-                    <Box sx={{ flex: 2 }}>Owner</Box>
-                    <Box sx={{ flex: 2 }}>Location</Box>
+                    <Box sx={{ flex: 2, display: { xs: "none", md: "block" } }}>Owner</Box>
+                    <Box sx={{ flex: 2, display: { xs: "none", md: "block" } }}>Location</Box>
                     <Box sx={{ width: 40 }}></Box>
                   </Box>
 

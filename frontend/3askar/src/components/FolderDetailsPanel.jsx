@@ -9,6 +9,7 @@ import {
   Tab,
   IconButton,
   useMediaQuery,
+  useTheme,
 } from "@mui/material";
 
 import CloseIcon from "@mui/icons-material/Close";
@@ -33,6 +34,7 @@ export default function FolderDetailsPanel({ open, folder, onClose, onDescriptio
  
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const theme = useTheme();
 
   const handleSaveDescription = async () => {
     if (!folder) return;
@@ -56,7 +58,7 @@ export default function FolderDetailsPanel({ open, folder, onClose, onDescriptio
   };
   
 
-  const isMobile = useMediaQuery("(max-width: 600px)");
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const drawerWidth = isMobile ? "100vw" : 360;
 
   return (

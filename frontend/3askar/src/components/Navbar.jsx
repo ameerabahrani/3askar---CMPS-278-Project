@@ -11,11 +11,12 @@ import {
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import SettingsIcon from "@mui/icons-material/Settings";
 import AppsIcon from "@mui/icons-material/Apps";
+import MenuIcon from "@mui/icons-material/Menu";
 import SearchBar from "./SearchBar";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-function Navbar() {
+function Navbar({ onDrawerToggle }) {
   const [anchorEl, setAnchorEl] = React.useState(null);
   const [userProfile, setUserProfile] = React.useState(null);
 
@@ -64,6 +65,7 @@ function Navbar() {
         bgcolor: "#f8fafd",
         color: "black",
         borderBottom: "1px solid #e0e0e0",
+        zIndex: (theme) => theme.zIndex.drawer + 1,
       }}
     >
       <Toolbar
@@ -78,24 +80,37 @@ function Navbar() {
           height: 64,
         }}
       >
-        {/* Logo + name */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, ml: 1 }}>
-          <img
-            src="https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_48dp.png"
-            alt="Drive Logo"
-            style={{ width: 40, height: 40 }}
-          />
-          <Typography
-            variant="h6"
-            sx={{
-              fontSize: 20,
-              fontWeight: 525,
-              color: "#202124",
-              letterSpacing: 0.2,
-            }}
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <IconButton
+            color="inherit"
+            aria-label="open drawer"
+            edge="start"
+            onClick={onDrawerToggle}
+            sx={{ mr: 2, display: { md: "none" }, color: "#5f6368" }}
           >
-            Drive
-          </Typography>
+            <MenuIcon />
+          </IconButton>
+
+          {/* Logo + name */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <img
+              src="https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_48dp.png"
+              alt="Drive Logo"
+              style={{ width: 40, height: 40 }}
+            />
+            <Typography
+              variant="h6"
+              sx={{
+                fontSize: 20,
+                fontWeight: 525,
+                color: "#202124",
+                letterSpacing: 0.2,
+                display: { xs: "none", sm: "block" },
+              }}
+            >
+              Drive
+            </Typography>
+          </Box>
         </Box>
 
         {/* Search bar */}
@@ -103,21 +118,6 @@ function Navbar() {
 
         {/* Icons + avatar */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <IconButton
-            sx={{ color: "#5f6368", "&:hover": { color: "#202124" } }}
-          >
-            <HelpOutlineIcon />
-          </IconButton>
-          <IconButton
-            sx={{ color: "#5f6368", "&:hover": { color: "#202124" } }}
-          >
-            <SettingsIcon />
-          </IconButton>
-          <IconButton
-            sx={{ color: "#5f6368", "&:hover": { color: "#202124" } }}
-          >
-            <AppsIcon />
-          </IconButton>
 
           <Avatar
             alt="User"

@@ -16,6 +16,8 @@ import {
   Link,
   CircularProgress,
   TextField,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import FolderIcon from "@mui/icons-material/Folder";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -204,8 +206,11 @@ const BatchMoveDialog = ({ open, onClose, onMove, selectedCount }) => {
     );
   };
 
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" fullScreen={isMobile}>
       <DialogTitle>
         Move {selectedCount} item{selectedCount !== 1 ? "s" : ""} to...
         {breadcrumbLoading ? (

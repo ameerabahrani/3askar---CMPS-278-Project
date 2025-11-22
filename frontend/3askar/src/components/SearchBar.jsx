@@ -17,6 +17,8 @@ import {
   Checkbox,
   Divider,
   Button,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import TuneIcon from "@mui/icons-material/Tune";
@@ -38,6 +40,8 @@ export default function SearchBar() {
   const [focused, setFocused] = useState(false);
   const [openAdvanced, setOpenAdvanced] = useState(false);
   const advancedDialogBg = "#e9eef6";
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const [searchText, setSearchText] = useState("");
   const [type, setType] = useState("any");
@@ -54,90 +58,90 @@ export default function SearchBar() {
 
 
   //returns all the elements to their default value or empty when reset
-const handleReset = () => {
-  setType("any");
-  setOwner("anyone");
-  setIncludesWords("");
-  setItemName("");
-  setLocation("anywhere");
-  setStarred(false);
-  setInBin(false);
+  const handleReset = () => {
+    setType("any");
+    setOwner("anyone");
+    setIncludesWords("");
+    setItemName("");
+    setLocation("anywhere");
+    setStarred(false);
+    setInBin(false);
 
-  setDateModified("anytime");
-  setAfterDate("");
-  setBeforeDate("");
-};
-
-const handleSearch = () => {
-  const query = new URLSearchParams();
-
-  if (searchText.trim() && !itemName.trim()) {
-    query.set("q", searchText.trim());
-  }
-
-  query.set("type", type);
-  query.set("owner", owner);
-  query.set("location", location);
-  query.set("dateModified", dateModified);
-
-  if (includesWords.trim()) query.set("includesWords", includesWords.trim());
-  if (itemName.trim()) query.set("itemName", itemName.trim());
-  if (starred) query.set("starred", "true");
-  if (inBin) query.set("inBin", "true");
-
-  if (dateModified === "custom") {
-    if (afterDate) query.set("afterDate", afterDate);
-    if (beforeDate) query.set("beforeDate", beforeDate);
-  }
-
-  const qs = query.toString();
-  navigate(qs ? `/search?${qs}` : "/search");
-  setOpenAdvanced(false);
-};
-
-const searchBarRef = React.useRef(null);
-
-const [anchorPos, setAnchorPos] = useState({ top: 0, left: 0, width: 0 });
-
-React.useEffect(() => {
-  if (searchBarRef.current) {
-    const rect = searchBarRef.current.getBoundingClientRect();
-    setAnchorPos({
-      top: rect.bottom + 8,   // 8px gap under search bar
-      left: rect.left,
-      width: rect.width
-    });
-  }
-}, [openAdvanced, focused, window.innerWidth]);
-
-const updateAnchorPosition = () => {
-  if (searchBarRef.current) {
-    const rect = searchBarRef.current.getBoundingClientRect();
-    setAnchorPos({
-      top: rect.bottom + 8,
-      left: rect.left,
-      width: rect.width
-    });
-  }
-};
-
-React.useEffect(() => {
-  if (openAdvanced) {
-    updateAnchorPosition();
-  }
-}, [openAdvanced]);
-
-React.useEffect(() => {
-  const handleResize = () => {
-    updateAnchorPosition();
+    setDateModified("anytime");
+    setAfterDate("");
+    setBeforeDate("");
   };
 
-  window.addEventListener("resize", handleResize);
+  const handleSearch = () => {
+    const query = new URLSearchParams();
 
-  return () => {
-    window.removeEventListener("resize", handleResize);
+    if (searchText.trim() && !itemName.trim()) {
+      query.set("q", searchText.trim());
+    }
+
+    query.set("type", type);
+    query.set("owner", owner);
+    query.set("location", location);
+    query.set("dateModified", dateModified);
+
+    if (includesWords.trim()) query.set("includesWords", includesWords.trim());
+    if (itemName.trim()) query.set("itemName", itemName.trim());
+    if (starred) query.set("starred", "true");
+    if (inBin) query.set("inBin", "true");
+
+    if (dateModified === "custom") {
+      if (afterDate) query.set("afterDate", afterDate);
+      if (beforeDate) query.set("beforeDate", beforeDate);
+    }
+
+    const qs = query.toString();
+    navigate(qs ? `/search?${qs}` : "/search");
+    setOpenAdvanced(false);
   };
-}, []);
+
+  const searchBarRef = React.useRef(null);
+
+  const [anchorPos, setAnchorPos] = useState({ top: 0, left: 0, width: 0 });
+
+  React.useEffect(() => {
+    if (searchBarRef.current) {
+      const rect = searchBarRef.current.getBoundingClientRect();
+      setAnchorPos({
+        top: rect.bottom + 8,   // 8px gap under search bar
+        left: rect.left,
+        width: rect.width
+      });
+    }
+  }, [openAdvanced, focused, window.innerWidth]);
+
+  const updateAnchorPosition = () => {
+    if (searchBarRef.current) {
+      const rect = searchBarRef.current.getBoundingClientRect();
+      setAnchorPos({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: rect.width
+      });
+    }
+  };
+
+  React.useEffect(() => {
+    if (openAdvanced) {
+      updateAnchorPosition();
+    }
+  }, [openAdvanced]);
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      updateAnchorPosition();
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   const handleBasicSearch = () => {
     const q = searchText.trim();
@@ -150,7 +154,7 @@ React.useEffect(() => {
 
 
   return (
-    <Box sx={{ flexGrow: 1, display: "flex", justifyContent: "center"}}>
+    <Box sx={{ flexGrow: 1, display: "flex", justifyContent: "center" }}>
       <SearchContainer
         ref={searchBarRef}
         sx={{
@@ -158,7 +162,7 @@ React.useEffect(() => {
           backgroundColor: focused ? "#ffffff" : "#e9eef6",
           transition: "background-color 0.2s ease, box-shadow 0.2s ease",
           boxShadow: focused ? "0 1px 3px rgba(0,0,0,0.2)" : "none",
-          maxWidth: { xs: 280, sm: 500, md: 700 },
+          maxWidth: { xs: "100%", sm: 500, md: 700 },
           "&:hover": { backgroundColor: focused ? "#ffffff" : "#dfe3eb" },
         }}
       >
@@ -193,31 +197,34 @@ React.useEffect(() => {
         />
 
         <IconButton sx={{ ml: 1, color: "#5f6368", "&:hover": { color: "#202124" } }}
-        onClick={() => setOpenAdvanced(true)}
+          onClick={() => setOpenAdvanced(true)}
         >
-            <TuneIcon />
+          <TuneIcon />
         </IconButton>
       </SearchContainer>
 
       <Dialog
-      open={openAdvanced}
-      onClose={() => setOpenAdvanced(false)}
-      maxWidth ='sm'
-      fullWidth
-      PaperProps={{
-      sx: {
-        backgroundColor: advancedDialogBg,
-        borderRadius: "12px",
-        position: "absolute",
-        top: `${anchorPos.top}px`,
-        left: `${anchorPos.left}px`,
-        width: `${anchorPos.width}px`,
-        m: 0,
-        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-        maxHeight: "80vh",
-        overflowY: "auto",
-      }
-    }}
+        open={openAdvanced}
+        onClose={() => setOpenAdvanced(false)}
+        maxWidth='sm'
+        fullWidth
+        fullScreen={isMobile}
+        PaperProps={{
+          sx: isMobile ? {
+            backgroundColor: advancedDialogBg,
+          } : {
+            backgroundColor: advancedDialogBg,
+            borderRadius: "12px",
+            position: "absolute",
+            top: `${anchorPos.top}px`,
+            left: `${anchorPos.left}px`,
+            width: `${anchorPos.width}px`,
+            m: 0,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            maxHeight: "80vh",
+            overflowY: "auto",
+          }
+        }}
       >
         <DialogTitle
           sx={{
@@ -244,7 +251,7 @@ React.useEffect(() => {
         <DialogContent>
 
           {/* TYPE */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3}}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
             <Box sx={{ width: 140, fontSize: 15, color: "#444746", fontWeight: "bold" }}>
               Type
             </Box>
@@ -272,7 +279,7 @@ React.useEffect(() => {
           </Box>
 
           {/* Onwerr */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3}}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
             <Box sx={{ width: 140, fontSize: 15, color: "#444746", fontWeight: "bold" }}>
               Owner
             </Box>
@@ -298,52 +305,52 @@ React.useEffect(() => {
           </Box>
 
           {/* inclues the word */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3}}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
             <Box sx={{ width: 140, fontSize: 15, color: "#444746", fontWeight: "bold" }}>
               Includes the words
             </Box>
 
             <TextField
-            placeholder="Enter words found in the file"
-            size="small"
-            fullWidth
-            value={includesWords}
-            onChange={(e) => setIncludesWords(e.target.value)}
-            sx={{
-              backgroundColor: advancedDialogBg,
-              "& .MuiOutlinedInput-root": {
-                borderRadius: "3px",
-                "& fieldset": {
-                  borderColor: "#747775",
+              placeholder="Enter words found in the file"
+              size="small"
+              fullWidth
+              value={includesWords}
+              onChange={(e) => setIncludesWords(e.target.value)}
+              sx={{
+                backgroundColor: advancedDialogBg,
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: "3px",
+                  "& fieldset": {
+                    borderColor: "#747775",
+                  },
+                  "&:hover fieldset": {
+                    borderColor: "#5f6368",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "#1a73e8",
+                  },
                 },
-                "&:hover fieldset": {
-                  borderColor: "#5f6368",
+                "& .MuiInputBase-input::placeholder": {
+                  fontSize: "14px",
+                  color: "#5f6368",
+                  opacity: 1,
                 },
-                "&.Mui-focused fieldset": {
-                  borderColor: "#1a73e8",
-                },
-              },
-              "& .MuiInputBase-input::placeholder": {
-                fontSize: "14px",
-                color: "#5f6368",
-                opacity: 1,
-              },
-              ml: 5
+                ml: 5
               }}
-              
+
             />
 
           </Box>
 
 
           {/* Item name */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3}}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
             <Box sx={{ width: 140, fontSize: 15, color: "#444746", fontWeight: "bold" }}>
               Item name
             </Box>
 
             <TextField
-            placeholder="Enter a term that matches part of the file name"
+              placeholder="Enter a term that matches part of the file name"
               size="small"
               fullWidth
               value={itemName}
@@ -369,7 +376,7 @@ React.useEffect(() => {
                 },
                 ml: 5
               }}
-              
+
             />
           </Box>
 
@@ -380,7 +387,7 @@ React.useEffect(() => {
             </Box>
 
             <RadioGroup defaultValue="anywhere" sx={{ display: "flex", flexDirection: "row", gap: 0.5 }}
-            value={location} onChange={(e) => setLocation(e.target.value)}>
+              value={location} onChange={(e) => setLocation(e.target.value)}>
               <FormControlLabel
                 value="anywhere"
                 control={<Radio size="small" />}
@@ -407,8 +414,8 @@ React.useEffect(() => {
             <Box sx={{ display: "flex", flexDirection: "row", gap: 0.5, ml: 19.5 }}>
               <FormControlLabel
                 control={
-                  <Checkbox 
-                    size="small" 
+                  <Checkbox
+                    size="small"
                     checked={starred}
                     onChange={(e) => setStarred(e.target.checked)}
                   />
@@ -418,8 +425,8 @@ React.useEffect(() => {
 
               <FormControlLabel
                 control={
-                  <Checkbox 
-                    size="small" 
+                  <Checkbox
+                    size="small"
                     checked={inBin}
                     onChange={(e) => setInBin(e.target.checked)}
                   />
@@ -430,7 +437,7 @@ React.useEffect(() => {
           </Box>
 
           {/* Date Modifed */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3}}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
             <Box sx={{ width: 140, fontSize: 15, color: "#444746", fontWeight: "bold" }}>
               Date modified
             </Box>
@@ -467,107 +474,107 @@ React.useEffect(() => {
 
           </Box>
 
-           {/* Show custom date range fields only when dateModified === 'custom' */}
-            {dateModified === "custom" && (
-              <Box sx={{ ml: "140px", mt: 1 }}>
-                <Box sx={{ fontSize: 14, color: "#3c4043", mb: 1 }}>
-                  Between:
-                </Box>
-
-                <Box sx={{ display: "flex", gap: 2, flexWrap: { xs: "wrap", sm: "nowrap" } }}>
-                  <TextField
-                    label="After date"
-                    type="date"
-                    size="small"
-                    fullWidth
-                    value={afterDate}
-                    onChange={(e) => setAfterDate(e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                    inputProps={{ max: beforeDate || undefined }}
-                    sx={{
-                      backgroundColor: advancedDialogBg,
-                      "& input::-webkit-calendar-picker-indicator": {
-                        opacity: 1,
-                        cursor: "pointer",
-                        filter: "invert(40%)",
-                      },
-                      "& .MuiOutlinedInput-root": {
-                        borderRadius: "8px",
-                        "& fieldset": { borderColor: "#747775" },
-                        "&:hover fieldset": { borderColor: "#5f6368" },
-                        "&.Mui-focused fieldset": { borderColor: "#1a73e8" },
-                      },
-                    }}
-                  />
-
-                  <TextField
-                    label="Before date"
-                    type="date"
-                    size="small"
-                    fullWidth
-                    value={beforeDate}
-                    onChange={(e) => setBeforeDate(e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                    inputProps={{ min: afterDate || undefined }}
-                    sx={{
-                      backgroundColor: advancedDialogBg,
-                      "& input::-webkit-calendar-picker-indicator": {
-                        opacity: 1,
-                        cursor: "pointer",
-                        filter: "invert(40%)",
-                      },
-                      "& .MuiOutlinedInput-root": {
-                        borderRadius: "8px",
-                        "& fieldset": { borderColor: "#747775" },
-                        "&:hover fieldset": { borderColor: "#5f6368" },
-                        "&.Mui-focused fieldset": { borderColor: "#1a73e8" },
-                      },
-                    }}
-                  />
-                </Box>
+          {/* Show custom date range fields only when dateModified === 'custom' */}
+          {dateModified === "custom" && (
+            <Box sx={{ ml: "140px", mt: 1 }}>
+              <Box sx={{ fontSize: 14, color: "#3c4043", mb: 1 }}>
+                Between:
               </Box>
-            )}
+
+              <Box sx={{ display: "flex", gap: 2, flexWrap: { xs: "wrap", sm: "nowrap" } }}>
+                <TextField
+                  label="After date"
+                  type="date"
+                  size="small"
+                  fullWidth
+                  value={afterDate}
+                  onChange={(e) => setAfterDate(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ max: beforeDate || undefined }}
+                  sx={{
+                    backgroundColor: advancedDialogBg,
+                    "& input::-webkit-calendar-picker-indicator": {
+                      opacity: 1,
+                      cursor: "pointer",
+                      filter: "invert(40%)",
+                    },
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: "8px",
+                      "& fieldset": { borderColor: "#747775" },
+                      "&:hover fieldset": { borderColor: "#5f6368" },
+                      "&.Mui-focused fieldset": { borderColor: "#1a73e8" },
+                    },
+                  }}
+                />
+
+                <TextField
+                  label="Before date"
+                  type="date"
+                  size="small"
+                  fullWidth
+                  value={beforeDate}
+                  onChange={(e) => setBeforeDate(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ min: afterDate || undefined }}
+                  sx={{
+                    backgroundColor: advancedDialogBg,
+                    "& input::-webkit-calendar-picker-indicator": {
+                      opacity: 1,
+                      cursor: "pointer",
+                      filter: "invert(40%)",
+                    },
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: "8px",
+                      "& fieldset": { borderColor: "#747775" },
+                      "&:hover fieldset": { borderColor: "#5f6368" },
+                      "&.Mui-focused fieldset": { borderColor: "#1a73e8" },
+                    },
+                  }}
+                />
+              </Box>
+            </Box>
+          )}
 
         </DialogContent>
 
-        <Divider sx={{mb: 2}} />
-        <Box sx={{ display: "flex", justifyContent: "right", alignItems: "center", pb: 2, pr: 2}}>
+        <Divider sx={{ mb: 2 }} />
+        <Box sx={{ display: "flex", justifyContent: "right", alignItems: "center", pb: 2, pr: 2 }}>
 
 
 
           {/* Right side: Reset + Search */}
           <Box sx={{ display: "flex", gap: 2 }}>
-            
+
             <Button
-            variant="outlined"
-            onClick={handleReset}
-            sx={{
-              textTransform: "none",
-              borderRadius: "30px",
-              px: 3,
-              borderColor: "#1a73e8",
-              color: "#1a73e8",
-              "&:hover": {
-                borderColor: "#1558b0",
-                backgroundColor: "rgba(26,115,232,0.04)",
-              },
-            }}
+              variant="outlined"
+              onClick={handleReset}
+              sx={{
+                textTransform: "none",
+                borderRadius: "30px",
+                px: 3,
+                borderColor: "#1a73e8",
+                color: "#1a73e8",
+                "&:hover": {
+                  borderColor: "#1558b0",
+                  backgroundColor: "rgba(26,115,232,0.04)",
+                },
+              }}
             >
               Reset
             </Button>
 
             <Button
-            variant="contained"
-            onClick={handleSearch}
-            sx={{
-              textTransform: "none",
-              borderRadius: "30px",
-              px: 3,
-              backgroundColor: "#1a73e8",
-              "&:hover": {
-                backgroundColor: "#1558b0",
-              },
-            }}
+              variant="contained"
+              onClick={handleSearch}
+              sx={{
+                textTransform: "none",
+                borderRadius: "30px",
+                px: 3,
+                backgroundColor: "#1a73e8",
+                "&:hover": {
+                  backgroundColor: "#1558b0",
+                },
+              }}
             >
               Search
             </Button>

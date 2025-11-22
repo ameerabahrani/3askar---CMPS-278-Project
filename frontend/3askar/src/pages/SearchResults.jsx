@@ -265,7 +265,9 @@ function SearchResults() {
     <Box
       sx={{
         flexGrow: 1,
-        padding: 10,
+        px: { xs: 2, md: 4 },
+        pt: 3,
+        pb: 6,
         marginTop: "64px",
         backgroundColor: "#ffffff",
         height: "calc(100vh - 64px)",
@@ -335,9 +337,9 @@ function SearchResults() {
               />
             </Box>
             <Box sx={{ flex: 3 }}>Name</Box>
-            <Box sx={{ flex: 2 }}>Owner</Box>
-            <Box sx={{ flex: 2 }}>Location</Box>
-            <Box sx={{ flex: 2 }}>Date modified</Box>
+            <Box sx={{ flex: 2, display: { xs: "none", md: "block" } }}>Owner</Box>
+            <Box sx={{ flex: 2, display: { xs: "none", md: "block" } }}>Location</Box>
+            <Box sx={{ flex: 2, display: { xs: "none", md: "block" } }}>Date modified</Box>
             <Box sx={{ width: 40 }} />
           </Box>
 
@@ -398,19 +400,19 @@ function SearchResults() {
                   <Typography sx={{ fontWeight: 500 }}>{file.name}</Typography>
                 </Box>
 
-                <Box sx={{ flex: 2 }}>
+                <Box sx={{ flex: 2, display: { xs: "none", md: "block" } }}>
                   <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
                     {file.owner || "Unknown"}
                   </Typography>
                 </Box>
 
-                <Box sx={{ flex: 2 }}>
+                <Box sx={{ flex: 2, display: { xs: "none", md: "block" } }}>
                   <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
                     {file.location || "My Drive"}
                   </Typography>
                 </Box>
 
-                <Box sx={{ flex: 2 }}>
+                <Box sx={{ flex: 2, display: { xs: "none", md: "block" } }}>
                   <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
                     {formatDate(file.lastAccessedAt || file.uploadedAt)}
                   </Typography>

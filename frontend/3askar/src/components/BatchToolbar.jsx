@@ -188,19 +188,32 @@ const BatchToolbar = ({ toolbarSource, visibleItems = [] }) => {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          px: 2,
+          px: { xs: 1, md: 2 },
           py: 1,
           backgroundColor: "#e8f0fe", // Light blue background for selection mode
           borderRadius: "16px",
-          mx: 2,
+          mx: { xs: 1, md: 2 },
           mb: 1,
+          overflowX: "auto",
+          whiteSpace: "nowrap",
+          // Add visible scrollbar for better UX
+          "&::-webkit-scrollbar": {
+            height: "6px",
+          },
+          "&::-webkit-scrollbar-thumb": {
+            backgroundColor: "rgba(0,0,0,0.2)",
+            borderRadius: "3px",
+          },
+          "&::-webkit-scrollbar-track": {
+            backgroundColor: "rgba(0,0,0,0.05)",
+          },
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
           <IconButton size="small" onClick={clearSelection}>
             <CloseIcon fontSize="small" />
           </IconButton>
-          <Typography variant="subtitle1" sx={{ fontWeight: 500, color: "#1967d2" }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 500, color: "#1967d2", fontSize: { xs: "0.875rem", md: "1rem" } }}>
             {count} selected
           </Typography>
         </Box>

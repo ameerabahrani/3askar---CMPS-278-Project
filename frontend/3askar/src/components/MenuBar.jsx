@@ -345,7 +345,14 @@ function MenuBar({ visibleFiles } = {}) {
 
   return (
     <Box sx={{ backgroundColor: "#ffffff", px: 2, py: 1 }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1.5,
+          flexWrap: { xs: "wrap", md: "nowrap" },
+        }}
+      >
 
         {/* Files / Folders toggle */}
         <ToggleButtonGroup

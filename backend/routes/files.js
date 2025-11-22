@@ -160,16 +160,23 @@ router.get("/:id/download", async (req, res) => {
         }
 
         const readStream = gridfsBucket.openDownloadStream(objectId);
+        
+        // Handle errors before piping to prevent unhandled errors
+        readStream.on("error", (err) => {
+            console.error("Error streaming file from GridFS:", err);
+            if (!res.headersSent) {
+                return res.status(404).json({ 
+                    message: "File not found or could not be read from GridFS",
+                    error: err.message 
+                });
+            }
+        });
+
         res.set({
             "Content-Type": file.contentType,
             "Content-Disposition": `attachment; filename="${file.filename}"`,    
         });
         readStream.pipe(res); //stream the file back to client
-
-        readStream.on("error", (err) => {
-            console.error("Error streaming file back to client.", err); 
-            res.status(500).json({ message: "Error reading file" });
-        });
 
     } catch (err) {
         console.error("Error in /files/:id/download:", err);
@@ -415,7 +422,7 @@ router.post("/:id/copy", async (req, res) => {
 
         const [gridFile] = await gridfsBucket.find({ _id: original.gridFsId }).toArray(); //read original file metadata from gridfs 
         if (!gridFile) {
-            return res.status(404).json({ message: "Original file data missing" });
+            return res.status(404).json({ message: "Original file data missing from GridFS" });
         }
         const sizeBytes = gridFile.length ?? original.size ?? 0;
 
@@ -431,8 +438,14 @@ router.post("/:id/copy", async (req, res) => {
             });
             const downloadStream = gridfsBucket.openDownloadStream(original.gridFsId);
 
-            downloadStream.on("error", reject);
-            uploadStream.on("error", reject);
+            downloadStream.on("error", (err) => {
+                console.error("Error reading original file from GridFS:", err);
+                reject(new Error("Failed to read original file: " + err.message));
+            });
+            uploadStream.on("error", (err) => {
+                console.error("Error uploading copy to GridFS:", err);
+                reject(err);
+            });
             uploadStream.on("finish", () => resolve(uploadStream.id));
 
             downloadStream.pipe(uploadStream);

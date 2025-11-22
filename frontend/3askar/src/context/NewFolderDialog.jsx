@@ -7,10 +7,14 @@ import {
   DialogActions,
   Button,
   TextField,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 
 function NewFolderDialog({ open, onClose, onSubmit }) {
   const [value, setValue] = React.useState("");
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   React.useEffect(() => {
     if (open) setValue(""); // reset when opened
@@ -22,7 +26,7 @@ function NewFolderDialog({ open, onClose, onSubmit }) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs" fullScreen={isMobile}>
       <DialogTitle>New folder</DialogTitle>
 
       <DialogContent>

@@ -146,7 +146,7 @@ function MyDrive() {
     <Box
       sx={{
         flexGrow: 1,
-        padding: 10,
+        p: { xs: 2, md: 4 },
         marginTop: "64px",
         backgroundColor: "#ffffff",
         height: "calc(100vh - 64px)",
@@ -210,9 +210,9 @@ function MyDrive() {
                   />
                 </Box>
                 <Box sx={{ flex: 3 }}>Name</Box>
-                <Box sx={{ flex: 2 }}>Owner</Box>
-                <Box sx={{ flex: 2 }}>Location</Box>
-                <Box sx={{ flex: 2 }}>Date modified</Box>
+                <Box sx={{ flex: 2, display: { xs: 'none', md: 'block' } }}>Owner</Box>
+                <Box sx={{ flex: 2, display: { xs: 'none', md: 'block' } }}>Location</Box>
+                <Box sx={{ flex: 2, display: { xs: 'none', md: 'block' } }}>Date modified</Box>
                 <Box sx={{ width: 40 }} />
               </Box>
 
@@ -299,7 +299,7 @@ function MyDrive() {
               {driveFiles.map((file) => {
                 const selected = isItemSelected(file);
                 return (
-                  <Grid item xs={12} sm={6} md={3} lg={2} key={file.id}>
+                  <Grid item xs={6} sm={4} md={3} lg={2} key={file.id}>
                     <Paper
                       elevation={0}
                       sx={{

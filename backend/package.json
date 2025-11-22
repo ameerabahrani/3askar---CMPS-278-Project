@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "orphan:check": "node ./utils/cleanupOrphans.js",
+    "orphan:fix": "node ./utils/removeOrphans.js"
   },
   "keywords": [],
   "author": "",

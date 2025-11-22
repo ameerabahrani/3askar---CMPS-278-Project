@@ -8,7 +8,8 @@ import {
   IconButton,
   Tabs,
   Tab,
-  useMediaQuery
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 
 import CloseIcon from "@mui/icons-material/Close";
@@ -90,6 +91,7 @@ export default function DetailsPanel({ open, file, onClose, onManageAccess }) {
   const [tab, setTab] = useState(0); // 0 = Details, 1 = Activity
   const [description, setDescription] = useState(file.description || "");
   const { refreshFiles } = useFiles();
+  const theme = useTheme();
 
   useEffect(() => {
   setDescription(file.description || "");
@@ -97,7 +99,7 @@ export default function DetailsPanel({ open, file, onClose, onManageAccess }) {
 
 
 
-  const isMobile = useMediaQuery("(max-width: 600px)");
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const drawerWidth = isMobile ? "100vw" : 360;
 
   // activity data temp until backend is ready

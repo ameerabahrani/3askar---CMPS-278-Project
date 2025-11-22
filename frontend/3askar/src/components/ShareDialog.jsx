@@ -12,6 +12,8 @@ import {
   MenuItem,
   Select,
   Avatar,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -215,8 +217,11 @@ function ShareDialog({ open, file, onClose }) {
     }));
 
   // ---------- RENDER ----------
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" fullScreen={isMobile}>
       <DialogTitle sx={{ fontWeight: 600, pb: 1 }}>
         {isFolder ? "Share folder" : "Share"} “{targetName}”
         <IconButton

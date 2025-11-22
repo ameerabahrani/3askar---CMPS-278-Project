@@ -190,7 +190,9 @@ function Bin() {
     <Box
       sx={{
         flexGrow: 1,
-        padding: 10,
+        px: { xs: 2, md: 4 },
+        pt: 3,
+        pb: 6,
         marginTop: "64px",
         backgroundColor: "#ffffff",
         height: "calc(100vh - 64px)",
@@ -231,15 +233,15 @@ function Bin() {
           Name{renderSortIndicator("name")}
         </Box>
 
-        <Box sx={{ flex: 3 }} onClick={() => handleSort("owner")}>
+        <Box sx={{ flex: 3, display: { xs: 'none', md: 'block' } }} onClick={() => handleSort("owner")}>
           Owner{renderSortIndicator("owner")}
         </Box>
 
-        <Box sx={{ flex: 2 }} onClick={() => handleSort("originalLocation")}>
+        <Box sx={{ flex: 2, display: { xs: 'none', md: 'block' } }} onClick={() => handleSort("originalLocation")}>
           Original location{renderSortIndicator("originalLocation")}
         </Box>
 
-        <Box sx={{ flex: 1 }} onClick={() => handleSort("dateDeleted")}>
+        <Box sx={{ flex: 1, display: { xs: 'none', md: 'block' } }} onClick={() => handleSort("dateDeleted")}>
           Date deleted{renderSortIndicator("dateDeleted")}
         </Box>
 

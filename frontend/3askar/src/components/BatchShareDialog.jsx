@@ -11,6 +11,8 @@ import {
   IconButton,
   MenuItem,
   Select,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import apiClient from "../services/apiClient";
@@ -58,8 +60,11 @@ function BatchShareDialog({ open, onClose, selectedCount, onShare }) {
     }
   };
 
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" fullScreen={isMobile}>
       <DialogTitle sx={{ fontWeight: 600, pb: 1 }}>
         Share {selectedCount} items
         <IconButton

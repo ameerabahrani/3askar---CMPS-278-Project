@@ -1,13 +1,15 @@
 import React from "react";
-import { Box, Typography, IconButton, Checkbox } from "@mui/material";
+import { Box, Typography, IconButton, Checkbox, Grid, Paper } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import ListIcon from "@mui/icons-material/ViewList";
+import GridViewIcon from "@mui/icons-material/GridView";
 import FolderIcon from "@mui/icons-material/Folder";
 import MenuBar from "../components/MenuBar";
 import BatchToolbar from "../components/BatchToolbar";
 import { useFiles } from "../context/fileContext.jsx";
 import FileKebabMenu from "../components/FileKebabMenu.jsx";
 import { isFolder } from "../utils/fileHelpers";
-import { getRowStyles } from "../styles/selectionTheme";
+import { getRowStyles, getCardStyles, checkboxOverlayStyles } from "../styles/selectionTheme";
 import { useNavigate } from "react-router-dom";
 import HoverActions from "../components/HoverActions.jsx";
 import RenameDialog from "../components/RenameDialog";
@@ -61,6 +63,7 @@ function Shared() {
   } = useFiles();
 
   const navigate = useNavigate();
+  const [viewMode, setViewMode] = React.useState("list");
   const [sortField, setSortField] = React.useState("name");
   const [sortDirection, setSortDirection] = React.useState("asc");
   const [menuAnchorEl, setMenuAnchorEl] = React.useState(null);
@@ -312,131 +315,250 @@ function Shared() {
 
       {selectedCount > 0 ? <BatchToolbar visibleItems={sortedFiles} /> : <MenuBar visibleFiles={sortedFiles} />}
 
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          px: 2,
-          py: 1,
-          mt: 2,
-          borderBottom: "1px solid #e0e0e0",
-          fontWeight: 500,
-          fontSize: 14,
-          color: "#5f6368",
-          cursor: "pointer",
-        }}
-      >
-        <Box sx={{ width: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Checkbox
-            size="small"
-            indeterminate={someSelected && !allSelected}
-            checked={allSelected}
-            onChange={handleHeaderToggle}
-          />
-        </Box>
-        <Box sx={{ flex: 4 }} onClick={() => handleSort("name")}>
-          Name{renderSortIndicator("name")}
-        </Box>
-
-        <Box sx={{ flex: 3, display: { xs: 'none', md: 'block' } }} onClick={() => handleSort("owner")}>
-          Shared by{renderSortIndicator("owner")}
-        </Box>
-
-        <Box sx={{ flex: 2, display: { xs: 'none', md: 'block' } }} onClick={() => handleSort("date")}>
-          Date shared{renderSortIndicator("date")}
-        </Box>
-
-        <Box sx={{ width: 40 }} />
+      {/* View Mode Toggle Buttons */}
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, mb: 1 }}>
+        <IconButton
+          size="small"
+          onClick={() => setViewMode("list")}
+          sx={{ color: viewMode === "list" ? "#1a73e8" : "#5f6368" }}
+        >
+          <ListIcon />
+        </IconButton>
+        <IconButton
+          size="small"
+          onClick={() => setViewMode("grid")}
+          sx={{ color: viewMode === "grid" ? "#1a73e8" : "#5f6368" }}
+        >
+          <GridViewIcon />
+        </IconButton>
       </Box>
 
-      {!sortedFiles.length ? (
-        <Typography sx={{ px: 2, py: 3, color: "#5f6368" }}>
-          Nothing has been shared with you yet.
-        </Typography>
-      ) : (
-        sortedFiles.map((file) => {
-          const selected = isItemSelected(file);
-          const isFolderItem = isFolder(file);
-          return (
-            <Box
-              key={file.id}
-              onContextMenu={(e) => handleContextMenu(e, file)}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                px: 2,
-                py: 1.5,
-                borderBottom: "1px solid #f1f3f4",
-                cursor: "pointer",
-                ...getRowStyles(selected),
-                cursor: isFolderItem ? "pointer" : "default",
-              }}
-              onClick={() => handleItemClick(file)}
-            >
-              {/* Batch checkbox */}
-              <Box sx={{ width: 40, display: "flex", justifyContent: "center" }}>
-                <Checkbox
-                  size="small"
-                  checked={selected}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    toggleSelectionFor(file);
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </Box>
+      {viewMode === "list" ? (
+        <>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              px: 2,
+              py: 1,
+              mt: 2,
+              borderBottom: "1px solid #e0e0e0",
+              fontWeight: 500,
+              fontSize: 14,
+              color: "#5f6368",
+              cursor: "pointer",
+            }}
+          >
+            <Box sx={{ width: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Checkbox
+                size="small"
+                indeterminate={someSelected && !allSelected}
+                checked={allSelected}
+                onChange={handleHeaderToggle}
+              />
+            </Box>
+            <Box sx={{ flex: 4 }} onClick={() => handleSort("name")}>
+              Name{renderSortIndicator("name")}
+            </Box>
 
-              {/* HoverActions replaces ALL row content */}
-              <HoverActions
-                file={file}
-                toggleStar={toggleStar}
-                openShareDialog={openShareDialog}
-                openRenameDialog={openRenameDialog}
-                openMenu={handleMenuButtonClick}
-                downloadFile={handleDownload}
-                formatDate={formatDate}
-                showShare={true}
-                showRename={canRename(file)}
-                disableWrapper={true}
-                renderContent={(f) => (
-                  <>
-                    {/* NAME + ICON */}
+            <Box sx={{ flex: 3, display: { xs: 'none', md: 'block' } }} onClick={() => handleSort("owner")}>
+              Shared by{renderSortIndicator("owner")}
+            </Box>
+
+            <Box sx={{ flex: 2, display: { xs: 'none', md: 'block' } }} onClick={() => handleSort("date")}>
+              Date shared{renderSortIndicator("date")}
+            </Box>
+
+            <Box sx={{ width: 40 }} />
+          </Box>
+
+          {!sortedFiles.length ? (
+            <Typography sx={{ px: 2, py: 3, color: "#5f6368" }}>
+              Nothing has been shared with you yet.
+            </Typography>
+          ) : (
+            sortedFiles.map((file) => {
+              const selected = isItemSelected(file);
+              const isFolderItem = isFolder(file);
+              return (
+                <Box
+                  key={file.id}
+                  onContextMenu={(e) => handleContextMenu(e, file)}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    px: 2,
+                    py: 1.5,
+                    borderBottom: "1px solid #f1f3f4",
+                    ...getRowStyles(selected),
+                    cursor: isFolderItem ? "pointer" : "default",
+                  }}
+                  onClick={() => handleItemClick(file)}
+                >
+                  {/* Batch checkbox */}
+                  <Box sx={{ width: 40, display: "flex", justifyContent: "center" }}>
+                    <Checkbox
+                      size="small"
+                      checked={selected}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        toggleSelectionFor(file);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </Box>
+
+                  {/* HoverActions replaces ALL row content */}
+                  <HoverActions
+                    file={file}
+                    sx={{ flex: 1 }}
+                    toggleStar={toggleStar}
+                    openShareDialog={openShareDialog}
+                    openRenameDialog={openRenameDialog}
+                    openMenu={handleMenuButtonClick}
+                    downloadFile={handleDownload}
+                    formatDate={formatDate}
+                    showShare={true}
+                    showRename={canRename(file)}
+                    disableWrapper={true}
+                    renderContent={(f) => (
+                      <>
+                        {/* NAME + ICON */}
+                        <Box
+                          sx={{
+                            flex: 4,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1.5,
+                          }}
+                        >
+                          {isFolderItem ? (
+                            <FolderIcon sx={{ color: "#5f6368", fontSize: 20 }} />
+                          ) : (
+                            <img
+                              src={f.icon || DEFAULT_FILE_ICON}
+                              width={20}
+                              height={20}
+                              alt="file icon"
+                            />
+                          )}
+                          {f.name}
+                        </Box>
+
+                        {/* OWNER */}
+                        <Box sx={{ flex: 3, color: "#5f6368" }}>
+                          {f.owner || "Unknown"}
+                        </Box>
+
+                        {/* DATE */}
+                        <Box sx={{ flex: 2, color: "#5f6368" }}>
+                          {formatDate(f.lastAccessedAt || f.uploadedAt)}
+                        </Box>
+                      </>
+                    )}
+                  />
+                </Box>
+              );
+            })
+          )}
+        </>
+      ) : (
+        /* GRID VIEW */
+        <Grid container spacing={2} sx={{ mt: 1 }}>
+          {!sortedFiles.length ? (
+            <Grid item xs={12}>
+              <Typography sx={{ px: 2, py: 3, color: "#5f6368" }}>
+                Nothing has been shared with you yet.
+              </Typography>
+            </Grid>
+          ) : (
+            sortedFiles.map((file) => {
+              const selected = isItemSelected(file);
+              const isFolderItem = isFolder(file);
+              return (
+                <Grid item xs={6} sm={4} md={3} lg={2} key={file.id}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      position: "relative",
+                      borderRadius: 2,
+                      overflow: "hidden",
+                      cursor: isFolderItem ? "pointer" : "default",
+                      transition: "all 0.2s ease",
+                      ...getCardStyles(selected),
+                    }}
+                    onClick={() => handleItemClick(file)}
+                  >
+                    {/* Grid view checkbox overlay */}
+                    <Checkbox
+                      size="small"
+                      checked={selected}
+                      onChange={(e) => { e.stopPropagation(); toggleSelectionFor(file); }}
+                      sx={checkboxOverlayStyles}
+                    />
+                    <IconButton
+                      size="small"
+                      sx={{ position: "absolute", top: 4, right: 4, zIndex: 2 }}
+                      onClick={(e) => { e.stopPropagation(); openMenu(e, file); }}
+                    >
+                      <MoreVertIcon sx={{ color: "#5f6368" }} />
+                    </IconButton>
+
                     <Box
                       sx={{
-                        flex: 4,
+                        height: 120,
                         display: "flex",
+                        justifyContent: "center",
                         alignItems: "center",
-                        gap: 1.5,
+                        backgroundColor: "#f8f9fa",
                       }}
                     >
                       {isFolderItem ? (
-                        <FolderIcon sx={{ color: "#5f6368", fontSize: 20 }} />
+                        <FolderIcon sx={{ fontSize: 40, color: "#4285f4" }} />
                       ) : (
                         <img
-                          src={f.icon || DEFAULT_FILE_ICON}
-                          width={20}
-                          height={20}
-                          alt="file icon"
+                          src={file.icon || DEFAULT_FILE_ICON}
+                          width={40}
+                          height={40}
+                          alt="file type"
                         />
                       )}
-                      {f.name}
                     </Box>
 
-                    {/* OWNER */}
-                    <Box sx={{ flex: 3, color: "#5f6368" }}>
-                      {f.owner || "Unknown"}
+                    <Box sx={{ p: 1.5 }}>
+                      <Typography
+                        sx={{
+                          fontWeight: 500,
+                          fontSize: 14,
+                          mb: 0.5,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {file.name}
+                      </Typography>
+                      <Typography
+                        sx={{
+                          color: "#5f6368",
+                          fontSize: 12,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {file.owner || "Unknown"}
+                      </Typography>
+                      <Typography sx={{ color: "#5f6368", fontSize: 12 }}>
+                        {formatDate(file.lastAccessedAt || file.uploadedAt)}
+                      </Typography>
                     </Box>
-
-                    {/* DATE */}
-                    <Box sx={{ flex: 2, color: "#5f6368" }}>
-                      {formatDate(f.lastAccessedAt || f.uploadedAt)}
-                    </Box>
-                  </>
-                )}
-              />
-            </Box>
-          );
-        })
+                  </Paper>
+                </Grid>
+              );
+            })
+          )}
+        </Grid>
       )}
 
       <FileKebabMenu

@@ -400,12 +400,14 @@ router.patch("/:id/rename", async (req, res) => {
         file.filename = newName;
         const updated = await file.save();
 
-        await updated.populate("owner", OWNER_FIELDS);
-        await updated.populate(SHARED_WITH_POPULATE);
+        const populated = await updated.populate([
+            { path: "owner", select: OWNER_FIELDS },
+            SHARED_WITH_POPULATE,
+        ]);
 
-        if (!updated) return res.status(404).json({ message: "File not found" });
+        if (!populated) return res.status(404).json({ message: "File not found" });
 
-        res.json({ message: "File renamed", file: updated });
+        res.json({ message: "File renamed", file: populated });
 
     } catch (err) {
         console.error("PATCH /rename error:", err);
@@ -901,17 +903,32 @@ router.patch("/:id/description", async (req, res) => {
         if (typeof description !== "string")
             return res.status(400).json({ message: "Invalid description" });
 
-        const updated = await File.findOneAndUpdate(
-            { _id: req.params.id, owner: req.user._id },
-            { $set: { description: description.trim() } },
-            { new: true }
-        ).populate("owner", OWNER_FIELDS)
-         .populate("sharedWith.user", "name email picture");
-
-        if (!updated)
+        // Find file first to check permissions
+        const file = await File.findOne({ _id: req.params.id, isDeleted: false });
+        if (!file)
             return res.status(404).json({ message: "File not found" });
 
-        res.json({ message: "Description updated", file: updated });
+        // Check permissions: Owner OR Shared with "write"
+        const isOwner = file.owner.toString() === req.user._id.toString();
+        const sharedEntry = file.sharedWith.find(
+            (s) => s.user.toString() === req.user._id.toString()
+        );
+        const hasWrite = sharedEntry && sharedEntry.permission === "write";
+
+        if (!isOwner && !hasWrite) {
+            return res.status(403).json({ message: "Permission denied" });
+        }
+
+        // Update description
+        file.description = description.trim();
+        const updated = await file.save();
+
+        const populated = await updated.populate([
+            { path: "owner", select: OWNER_FIELDS },
+            { path: "sharedWith.user", select: "name email picture" },
+        ]);
+
+        res.json({ message: "Description updated", file: populated });
 
     } catch (err) {
         console.error("PATCH /description error:", err);

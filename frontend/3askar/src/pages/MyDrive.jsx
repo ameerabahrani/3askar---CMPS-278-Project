@@ -162,29 +162,41 @@ function MyDrive() {
       {/* PG-2: conditional toolbar swap */}
       {selectedCount > 0 ? <BatchToolbar visibleItems={driveFiles} /> : <MenuBar />}
 
+      {/* View Mode Buttons */}
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, mb: 2, gap: 0.5 }}>
+        <IconButton
+          size="small"
+          onClick={() => setViewMode("list")}
+          sx={{ 
+            color: viewMode === "list" ? "#1a73e8" : "#5f6368",
+            '&:hover': {
+              backgroundColor: 'rgba(26, 115, 232, 0.08)'
+            }
+          }}
+        >
+          <ListIcon />
+        </IconButton>
+
+        <IconButton
+          size="small"
+          onClick={() => setViewMode("grid")}
+          sx={{ 
+            color: viewMode === "grid" ? "#1a73e8" : "#5f6368",
+            '&:hover': {
+              backgroundColor: 'rgba(26, 115, 232, 0.08)'
+            }
+          }}
+        >
+          <GridViewIcon />
+        </IconButton>
+      </Box>
+
       {driveFiles.length === 0 ? (
         <Typography sx={{ p: 4, color: "#5f6368" }}>
           No files match the current filters.
         </Typography>
       ) : (
         <>
-          {/* View Mode Buttons */}
-          <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
-            <IconButton
-              onClick={() => setViewMode("list")}
-              sx={{ color: viewMode === "list" ? "#1a73e8" : "#5f6368" }}
-            >
-              <ListIcon />
-            </IconButton>
-
-            <IconButton
-              onClick={() => setViewMode("grid")}
-              sx={{ color: viewMode === "grid" ? "#1a73e8" : "#5f6368" }}
-            >
-              <GridViewIcon />
-            </IconButton>
-          </Box>
-
           {/* LIST VIEW */}
           {viewMode === "list" ? (
             <>
@@ -303,15 +315,16 @@ function MyDrive() {
                     <Paper
                       elevation={0}
                       sx={{
-                        borderRadius: 2,
-                        cursor: "pointer",
-                        transition: "0.2s",
                         position: "relative",
+                        borderRadius: 2,
+                        overflow: "hidden",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
                         ...getCardStyles(selected),
                       }}
                       onClick={() => { /* placeholder for potential open */ }}
                     >
-                      {/* PG-6: grid view checkbox overlay */}
+                      {/* Grid view checkbox overlay */}
                       <Checkbox
                         size="small"
                         checked={selected}
@@ -320,8 +333,8 @@ function MyDrive() {
                       />
                       <IconButton
                         size="small"
-                        sx={{ position: "absolute", top: 4, right: 4 }}
-                        onClick={(e) => openMenu(e, file)}
+                        sx={{ position: "absolute", top: 4, right: 4, zIndex: 2 }}
+                        onClick={(e) => { e.stopPropagation(); openMenu(e, file); }}
                       >
                         <MoreVertIcon sx={{ color: "#5f6368" }} />
                       </IconButton>
@@ -347,11 +360,28 @@ function MyDrive() {
                         )}
                       </Box>
 
-                      <Box sx={{ p: 1.5, pt: 5 }}>
-                        <Typography sx={{ fontWeight: 500, fontSize: 14, mb: 0.5 }}>
+                      <Box sx={{ p: 1.5 }}>
+                        <Typography
+                          sx={{
+                            fontWeight: 500,
+                            fontSize: 14,
+                            mb: 0.5,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
                           {file.name}
                         </Typography>
-                        <Typography sx={{ color: "#5f6368", fontSize: 12 }}>
+                        <Typography
+                          sx={{
+                            color: "#5f6368",
+                            fontSize: 12,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
                           {file.owner || "Unknown"}
                         </Typography>
                         <Typography sx={{ color: "#5f6368", fontSize: 12 }}>

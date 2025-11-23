@@ -38,11 +38,12 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useFiles } from "../context/fileContext.jsx";
 import FolderDetailsPanel from "./FolderDetailsPanel";
 import RenameDialog from "./RenameDialog.jsx";
-
-
-
+import { getCardStyles, checkboxOverlayStyles } from "../styles/selectionTheme";
 import DetailsPanel from "./DetailsPanel.jsx";
 import ShareDialog from "./ShareDialog.jsx";
+
+const DEFAULT_FILE_ICON =
+  "https://www.gstatic.com/images/icons/material/system/2x/insert_drive_file_black_24dp.png";
 
 const formatDate = (value) => {
   if (!value) return "";
@@ -808,6 +809,37 @@ function Homepage({ initialView = "MY_DRIVE" }) {
         <MenuBar visibleFiles={allFiles} />
       )}
 
+      {/* View Mode Toggle Buttons - Only for MY_DRIVE */}
+      {currentView === "MY_DRIVE" && (
+        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, mb: 2, gap: 0.5 }}>
+          <IconButton
+            size="small"
+            onClick={() => setViewMode("list")}
+            sx={{ 
+              color: viewMode === "list" ? "#1a73e8" : "#5f6368",
+              '&:hover': {
+                backgroundColor: 'rgba(26, 115, 232, 0.08)'
+              }
+            }}
+          >
+            <ListIcon />
+          </IconButton>
+
+          <IconButton
+            size="small"
+            onClick={() => setViewMode("grid")}
+            sx={{ 
+              color: viewMode === "grid" ? "#1a73e8" : "#5f6368",
+              '&:hover': {
+                backgroundColor: 'rgba(26, 115, 232, 0.08)'
+              }
+            }}
+          >
+            <GridViewIcon />
+          </IconButton>
+        </Box>
+      )}
+
       {/* FOLDERS ACCORDION - ONLY FOR HOME OR OTHER VIEWS, NOT MY_DRIVE (UNIFIED) */}
       {currentView !== "MY_DRIVE" && (
         <Accordion
@@ -1407,144 +1439,238 @@ function Homepage({ initialView = "MY_DRIVE" }) {
       {/* UNIFIED LIST VIEW - ONLY FOR MY_DRIVE */}
       {currentView === "MY_DRIVE" && (
         <Box sx={{ mt: 2 }}>
-          {/* Header Row */}
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              px: 2,
-              py: 1,
-              borderBottom: "1px solid #e0e0e0",
-              color: "#5f6368",
-              fontSize: 14,
-              fontWeight: 500,
-            }}
-          >
-            <Box sx={{ width: 40, display: "flex", justifyContent: "center" }}>
-              <Checkbox
-                size="small"
-                checked={
-                  unifiedItems.length > 0 &&
-                  unifiedItems.every((item) =>
-                    item.type === 'folder' ? selectedFolders.has(item.publicId || item._id) : selectedFiles.has(item.id)
-                  )
-                }
-                indeterminate={
-                  unifiedItems.some((item) =>
-                    item.type === 'folder' ? selectedFolders.has(item.publicId || item._id) : selectedFiles.has(item.id)
-                  ) &&
-                  !unifiedItems.every((item) =>
-                    item.type === 'folder' ? selectedFolders.has(item.publicId || item._id) : selectedFiles.has(item.id)
-                  )
-                }
-                onChange={() => {
-                  const allSelected = unifiedItems.every((item) =>
-                    item.type === 'folder' ? selectedFolders.has(item.publicId || item._id) : selectedFiles.has(item.id)
-                  );
-
-                  if (allSelected) {
-                    clearSelection();
-                  } else {
-                    // Select all
-                    const fileIds = [];
-                    const folderIds = [];
-                    unifiedItems.forEach(item => {
-                      if (item.type === 'folder') folderIds.push(item.publicId || item._id);
-                      else fileIds.push(item.id);
-                    });
-                    // We need to call selectAll with objects? No, context selectAll takes items.
-                    // But context selectAll logic separates them.
-                    // We can manually select all.
-                    unifiedItems.forEach(item => {
-                      if (item.type === 'folder') {
-                        if (!selectedFolders.has(item.publicId || item._id)) toggleFolderSelection(item.publicId || item._id);
-                      } else {
-                        if (!selectedFiles.has(item.id)) toggleFileSelection(item.id);
-                      }
-                    });
-                  }
-                }}
-              />
-            </Box>
-            <Box sx={{ flex: 3 }}>Name</Box>
-            <Box sx={{ flex: 2 }}>Owner</Box>
-            <Box sx={{ flex: 2 }}>Last modified</Box>
-            <Box sx={{ width: 40 }} />
-          </Box>
-
-          {/* List Items */}
           {unifiedItems.length === 0 ? (
             <Typography sx={{ px: 2, py: 3, color: "#5f6368" }}>
               {isMyDriveRoot ? "My Drive is empty." : "This folder is empty."}
             </Typography>
-          ) : (
-            unifiedItems.map((item) => {
-              const isFolderItem = item.type === 'folder';
-              const id = isFolderItem ? (item.publicId || item._id) : item.id;
-              const selected = isFolderItem ? selectedFolders.has(id) : selectedFiles.has(id);
+          ) : viewMode === "list" ? (
+            <>
+              {/* Header Row */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  px: 2,
+                  py: 1,
+                  borderBottom: "1px solid #e0e0e0",
+                  color: "#5f6368",
+                  fontSize: 14,
+                  fontWeight: 500,
+                }}
+              >
+                <Box sx={{ width: 40, display: "flex", justifyContent: "center" }}>
+                  <Checkbox
+                    size="small"
+                    checked={
+                      unifiedItems.length > 0 &&
+                      unifiedItems.every((item) =>
+                        item.type === 'folder' ? selectedFolders.has(item.publicId || item._id) : selectedFiles.has(item.id)
+                      )
+                    }
+                    indeterminate={
+                      unifiedItems.some((item) =>
+                        item.type === 'folder' ? selectedFolders.has(item.publicId || item._id) : selectedFiles.has(item.id)
+                      ) &&
+                      !unifiedItems.every((item) =>
+                        item.type === 'folder' ? selectedFolders.has(item.publicId || item._id) : selectedFiles.has(item.id)
+                      )
+                    }
+                    onChange={() => {
+                      const allSelected = unifiedItems.every((item) =>
+                        item.type === 'folder' ? selectedFolders.has(item.publicId || item._id) : selectedFiles.has(item.id)
+                      );
 
-              return (
-                <HoverActions
-                  key={isFolderItem ? `folder-${id}` : `file-${id}`}
-                  file={item}
-                  toggleStar={() => handleUnifiedToggleStar(id)}
-                  openShareDialog={() => handleUnifiedShare(item)}
-                  openRenameDialog={() => handleUnifiedRename(item)}
-                  downloadFile={() => handleUnifiedDownload(item)}
-                  openMenu={(e) => handleUnifiedMenu(e, item)}
-                  formatDate={formatDate}
-                  sx={{
-                    backgroundColor: selected ? "#e8f0fe" : "transparent",
-                    "&:hover": {
-                      backgroundColor: selected ? "#e8f0fe" : "#f8f9fa",
-                      "& .item-checkbox": { opacity: 1 },
-                    },
-                  }}
-                  renderContent={(currentItem) => (
-                    <>
-                      <Box
-                        className="item-checkbox"
-                        onClick={(e) => e.stopPropagation()}
-                        sx={{
-                          width: 40,
-                          display: "flex",
-                          justifyContent: "center",
-                          opacity: selected ? 1 : 0,
-                          transition: "opacity 0.2s",
+                      if (allSelected) {
+                        clearSelection();
+                      } else {
+                        // Select all
+                        unifiedItems.forEach(item => {
+                          if (item.type === 'folder') {
+                            if (!selectedFolders.has(item.publicId || item._id)) toggleFolderSelection(item.publicId || item._id);
+                          } else {
+                            if (!selectedFiles.has(item.id)) toggleFileSelection(item.id);
+                          }
+                        });
+                      }
+                    }}
+                  />
+                </Box>
+                <Box sx={{ flex: 3 }}>Name</Box>
+                <Box sx={{ flex: 2 }}>Owner</Box>
+                <Box sx={{ flex: 2 }}>Last modified</Box>
+                <Box sx={{ width: 40 }} />
+              </Box>
+
+              {/* List Items */}
+              {unifiedItems.map((item) => {
+                const isFolderItem = item.type === 'folder';
+                const id = isFolderItem ? (item.publicId || item._id) : item.id;
+                const selected = isFolderItem ? selectedFolders.has(id) : selectedFiles.has(id);
+
+                return (
+                  <HoverActions
+                    key={isFolderItem ? `folder-${id}` : `file-${id}`}
+                    file={item}
+                    toggleStar={() => handleUnifiedToggleStar(id)}
+                    openShareDialog={() => handleUnifiedShare(item)}
+                    openRenameDialog={() => handleUnifiedRename(item)}
+                    downloadFile={() => handleUnifiedDownload(item)}
+                    openMenu={(e) => handleUnifiedMenu(e, item)}
+                    formatDate={formatDate}
+                    sx={{
+                      backgroundColor: selected ? "#e8f0fe" : "transparent",
+                      "&:hover": {
+                        backgroundColor: selected ? "#e8f0fe" : "#f8f9fa",
+                        "& .item-checkbox": { opacity: 1 },
+                      },
+                    }}
+                    renderContent={(currentItem) => (
+                      <>
+                        <Box
+                          className="item-checkbox"
+                          onClick={(e) => e.stopPropagation()}
+                          sx={{
+                            width: 40,
+                            display: "flex",
+                            justifyContent: "center",
+                            opacity: selected ? 1 : 0,
+                            transition: "opacity 0.2s",
+                          }}
+                        >
+                          <Checkbox
+                            size="small"
+                            checked={selected}
+                            onChange={() => isFolderItem ? toggleFolderSelection(id) : toggleFileSelection(id)}
+                          />
+                        </Box>
+
+                        <Box sx={{ flex: 3, display: "flex", alignItems: "center", gap: 1.5 }}>
+                          {isFolderItem ? (
+                            <FolderIcon sx={{ color: "#5f6368", fontSize: 24 }} />
+                          ) : (
+                            <img src={currentItem.icon || DEFAULT_FILE_ICON} alt="" width={24} height={24} />
+                          )}
+                          <Typography sx={{ fontWeight: 500 }}>{currentItem.name}</Typography>
+                        </Box>
+
+                        <Box sx={{ flex: 2 }}>
+                          <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
+                            {currentItem.owner || "Unknown"}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ flex: 2 }}>
+                          <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
+                            {formatDate(currentItem.updatedAt || currentItem.lastAccessedAt || currentItem.uploadedAt)}
+                          </Typography>
+                        </Box>
+                      </>
+                    )}
+                  />
+                );
+              })}
+            </>
+          ) : (
+            /* GRID VIEW */
+            <Grid container spacing={2}>
+              {unifiedItems.map((item) => {
+                const isFolderItem = item.type === 'folder';
+                const id = isFolderItem ? (item.publicId || item._id) : item.id;
+                const selected = isFolderItem ? selectedFolders.has(id) : selectedFiles.has(id);
+
+                return (
+                  <Grid item xs={6} sm={4} md={3} lg={2} key={isFolderItem ? `folder-${id}` : `file-${id}`}>
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        position: "relative",
+                        borderRadius: 2,
+                        overflow: "hidden",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        ...getCardStyles(selected),
+                      }}
+                      onClick={() => { /* placeholder for potential open */ }}
+                    >
+                      {/* Grid view checkbox overlay */}
+                      <Checkbox
+                        size="small"
+                        checked={selected}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          if (isFolderItem) {
+                            toggleFolderSelection(id);
+                          } else {
+                            toggleFileSelection(id);
+                          }
+                        }}
+                        sx={checkboxOverlayStyles}
+                      />
+                      <IconButton
+                        size="small"
+                        sx={{ position: "absolute", top: 4, right: 4, zIndex: 2 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUnifiedMenu(e, item);
                         }}
                       >
-                        <Checkbox
-                          size="small"
-                          checked={selected}
-                          onChange={() => isFolderItem ? toggleFolderSelection(id) : toggleFileSelection(id)}
-                        />
-                      </Box>
+                        <MoreVertIcon sx={{ color: "#5f6368" }} />
+                      </IconButton>
 
-                      <Box sx={{ flex: 3, display: "flex", alignItems: "center", gap: 1.5 }}>
+                      <Box
+                        sx={{
+                          height: 120,
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          backgroundColor: "#f8f9fa",
+                        }}
+                      >
                         {isFolderItem ? (
-                          <FolderIcon sx={{ color: "#5f6368", fontSize: 24 }} />
+                          <FolderIcon sx={{ fontSize: 40, color: "#4285f4" }} />
                         ) : (
-                          <img src={currentItem.icon || "https://www.gstatic.com/images/icons/material/system/2x/insert_drive_file_black_24dp.png"} alt="" width={24} height={24} />
+                          <img
+                            src={item.icon || DEFAULT_FILE_ICON}
+                            width={40}
+                            height={40}
+                            alt="file type"
+                          />
                         )}
-                        <Typography sx={{ fontWeight: 500 }}>{currentItem.name}</Typography>
                       </Box>
 
-                      <Box sx={{ flex: 2 }}>
-                        <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
-                          {currentItem.owner || "Unknown"}
+                      <Box sx={{ p: 1.5 }}>
+                        <Typography
+                          sx={{
+                            fontWeight: 500,
+                            fontSize: 14,
+                            mb: 0.5,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {item.name}
+                        </Typography>
+                        <Typography
+                          sx={{
+                            color: "#5f6368",
+                            fontSize: 12,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {item.owner || "Unknown"}
+                        </Typography>
+                        <Typography sx={{ color: "#5f6368", fontSize: 12 }}>
+                          {formatDate(item.updatedAt || item.lastAccessedAt || item.uploadedAt)}
                         </Typography>
                       </Box>
-
-                      <Box sx={{ flex: 2 }}>
-                        <Typography sx={{ color: "#5f6368", fontSize: 14 }}>
-                          {formatDate(currentItem.updatedAt || currentItem.lastAccessedAt || currentItem.uploadedAt)}
-                        </Typography>
-                      </Box>
-                    </>
-                  )}
-                />
-              );
-            })
+                    </Paper>
+                  </Grid>
+                );
+              })}
+            </Grid>
           )}
         </Box>
       )}

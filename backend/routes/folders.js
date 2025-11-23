@@ -9,6 +9,7 @@ const router = express.Router();
 
 const File = require("../models/File");
 const archiver = require("archiver");
+const updateStorage = require("../utils/storage");
 
 
 function isSameId(a, b) {
@@ -77,31 +78,6 @@ async function findFolderByAnyId(id) {
 
   return null;
 }
-
-// Collect a folder and ALL its descendants
-async function walkFolderTree(rootFolderId) {
-  const result = [];
-
-  async function dfs(folderId) {
-    const folder = await Folder.findById(folderId);
-    if (!folder) return;
-
-    result.push(folder);
-
-    const children = await Folder.find({
-      parentFolder: folder._id,
-      isDeleted: false,
-    });
-
-    for (const child of children) {
-      await dfs(child._id);
-    }
-  }
-
-  await dfs(rootFolderId);
-  return result;                // array of Folder docs (root + all descendants)
-}
-
 
 let gridfsBucket;
 mongoose.connection.once("open", () => {
@@ -589,25 +565,71 @@ router.post("/:id/copy", ensureAuth, async (req, res) => {
       });
 
       for (const file of filesInSource) {
-        const fileCopy = new File({
-          gridFsId: file.gridFsId,              // reuse stored bytes
-          filename: file.filename,
-          originalName: file.originalName,
-          owner: userId,
-          size: file.size,
-          type: file.type,
-          location: "My Drive",                 // consistent with your file model
-          folderId: copiedFolder._id,
-          path: Array.isArray(file.path) ? [...file.path] : [],
-          isStarred: false,
-          isDeleted: false,
-          description: file.description || "",
-          sharedWith: [],                       // new copy is private
-          uploadDate: new Date(),
-          lastAccessed: new Date(),
-        });
+        if (!file.gridFsId) {
+          console.warn(`Skipping file ${file._id} - no gridFsId`);
+          continue;
+        }
 
-        await fileCopy.save();
+        try {
+          // Get the original GridFS file
+          const [gridFile] = await gridfsBucket.find({ _id: file.gridFsId }).toArray();
+          if (!gridFile) {
+            console.warn(`GridFS file not found for ${file.gridFsId}`);
+            continue;
+          }
+
+          const sizeBytes = gridFile.length ?? file.size ?? 0;
+          const copyName = file.filename || file.originalName || "Untitled";
+
+          // Create a new GridFS entry by streaming the original file
+          const newGridFsId = await new Promise((resolve, reject) => {
+            const timestamp = new Date();
+            const uploadStream = gridfsBucket.openUploadStream(copyName, {
+              contentType: file.type,
+              metadata: {
+                owner: new mongoose.Types.ObjectId(userId),
+                copiedFrom: file.gridFsId,
+                copiedAt: timestamp,
+              },
+            });
+            const downloadStream = gridfsBucket.openDownloadStream(file.gridFsId);
+
+            downloadStream.on("error", reject);
+            uploadStream.on("error", reject);
+            uploadStream.on("finish", () => resolve(uploadStream.id));
+
+            downloadStream.pipe(uploadStream);
+          });
+
+          // Create the new file metadata with the new GridFS ID
+          const fileCopy = new File({
+            gridFsId: newGridFsId,              // NEW GridFS entry, not reused
+            filename: copyName,
+            originalName: file.originalName || file.filename,
+            owner: userId,
+            size: file.size || sizeBytes,
+            type: file.type,
+            location: "My Drive",
+            folderId: copiedFolder._id,
+            path: Array.isArray(file.path) ? [...file.path] : [],
+            isStarred: false,
+            isDeleted: false,
+            description: file.description || "",
+            sharedWith: [],                       // new copy is private
+            uploadDate: new Date(),
+            lastAccessed: new Date(),
+          });
+
+          // Update user's storage used for the copied file so quotas/counts remain accurate.
+          if (sizeBytes > 0) {
+            await updateStorage(userId, sizeBytes, "add");
+          }
+
+          await fileCopy.save();
+        } catch (err) {
+          console.error(`Failed to copy file ${file._id}:`, err);
+          // Continue with other files even if one fails
+        }
       }
 
       // 2) Recursively copy child folders
@@ -684,9 +706,12 @@ router.get("/:id/download", ensureAuth, async (req, res) => {
       const folderPath = prefix ? `${prefix}/${folderDoc.name}` : folderDoc.name;
 
       const files = await File.find({
-        owner: userId,
-        isDeleted: false,
         folderId: folderDoc._id,
+        isDeleted: false,
+        $or: [
+          { owner: userId },
+          { sharedWith: { $elemMatch: { user: userId } } }
+        ]
       });
 
       for (const f of files) {
@@ -700,6 +725,10 @@ router.get("/:id/download", ensureAuth, async (req, res) => {
       const children = await Folder.find({
         parentFolder: folderDoc._id,
         isDeleted: false,
+        $or: [
+          { owner: userId },
+          { sharedWith: { $elemMatch: { user: userId } } }
+        ]
       });
 
       for (const child of children) {

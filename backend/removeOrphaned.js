@@ -9,7 +9,6 @@ async function removeOrphanedFiles() {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log("✅ Connected to MongoDB\n");
 
-    console.log("✅ Connected to MongoDB\n");
     console.log("🔍 Finding orphaned file metadata...\n");
 
     // Get GridFS bucket
